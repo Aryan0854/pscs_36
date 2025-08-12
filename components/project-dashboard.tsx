@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -34,129 +34,54 @@ import {
   Zap,
   BarChart3,
   PieChartIcon,
+  RefreshCw,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-interface ProjectStats {
-  totalProjects: number
-  activeProjects: number
-  completedProjects: number
-  totalLanguages: number
-  totalDuration: string
-  processingTime: string
-}
-
-interface SystemMetrics {
-  cpuUsage: number
-  memoryUsage: number
-  storageUsage: number
-  activeJobs: number
-}
-
-interface ActivityItem {
-  id: string
-  type: "project_created" | "export_completed" | "scene_updated" | "translation_finished"
-  title: string
-  description: string
-  timestamp: string
-  user: string
+interface DashboardData {
+  projectStats: any
+  languageUsage: any[]
+  projectTrends: any[]
+  processingTimeData: any[]
+  systemMetrics: any
+  recentActivity: any[]
 }
 
 export function ProjectDashboard() {
   const [timeRange, setTimeRange] = useState("7d")
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [loading, setLoading] = useState(true)
   const { toast } = useToast()
 
-  const projectStats: ProjectStats = {
-    totalProjects: 47,
-    activeProjects: 8,
-    completedProjects: 39,
-    totalLanguages: 14,
-    totalDuration: "18h 32m",
-    processingTime: "142h 15m",
-  }
-
-  const systemMetrics: SystemMetrics = {
-    cpuUsage: 68,
-    memoryUsage: 45,
-    storageUsage: 72,
-    activeJobs: 3,
-  }
-
-  const languageUsageData = [
-    { name: "Hindi", value: 35, color: "#2563eb" },
-    { name: "English", value: 28, color: "#059669" },
-    { name: "Bengali", value: 15, color: "#dc2626" },
-    { name: "Tamil", value: 12, color: "#7c3aed" },
-    { name: "Telugu", value: 10, color: "#ea580c" },
-  ]
-
-  const projectTrendsData = [
-    { month: "Jan", projects: 12, exports: 45 },
-    { month: "Feb", projects: 19, exports: 67 },
-    { month: "Mar", projects: 15, exports: 52 },
-    { month: "Apr", projects: 23, exports: 78 },
-    { month: "May", projects: 18, exports: 61 },
-    { month: "Jun", projects: 25, exports: 89 },
-  ]
-
-  const processingTimeData = [
-    { day: "Mon", time: 45 },
-    { day: "Tue", time: 52 },
-    { day: "Wed", time: 38 },
-    { day: "Thu", time: 61 },
-    { day: "Fri", time: 47 },
-    { day: "Sat", time: 29 },
-    { day: "Sun", time: 33 },
-  ]
-
-  const recentActivity: ActivityItem[] = [
-    {
-      id: "1",
-      type: "export_completed",
-      title: "Healthcare Policy Announcement",
-      description: "Export completed for 6 languages",
-      timestamp: "2 minutes ago",
-      user: "Admin User",
-    },
-    {
-      id: "2",
-      type: "project_created",
-      title: "Economic Survey Highlights",
-      description: "New project created with 8 scenes",
-      timestamp: "15 minutes ago",
-      user: "Content Team",
-    },
-    {
-      id: "3",
-      type: "translation_finished",
-      title: "Digital India Initiative",
-      description: "Translation completed for Tamil",
-      timestamp: "1 hour ago",
-      user: "AI System",
-    },
-    {
-      id: "4",
-      type: "scene_updated",
-      title: "Policy Announcement Scene 3",
-      description: "Scene properties updated",
-      timestamp: "2 hours ago",
-      user: "Design Team",
-    },
-  ]
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "project_created":
-        return <FileText className="w-4 h-4 text-blue-500" />
-      case "export_completed":
-        return <Download className="w-4 h-4 text-green-500" />
-      case "scene_updated":
-        return <Layers className="w-4 h-4 text-purple-500" />
-      case "translation_finished":
-        return <Globe className="w-4 h-4 text-orange-500" />
-      default:
-        return <Activity className="w-4 h-4 text-gray-500" />
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch("/api/analytics/dashboard")
+      if (!response.ok) throw new Error("Failed to fetch dashboard data")
+      const data = await response.json()
+      setDashboardData(data)
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const handleRefresh = () => {
+    fetchDashboardData()
+    toast({
+      title: "Dashboard Refreshed",
+      description: "Analytics data has been updated with the latest information.",
+    })
   }
 
   const handleUploadPressRelease = () => {
@@ -213,8 +138,58 @@ export function ProjectDashboard() {
     })
   }
 
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case "project_created":
+        return <FileText className="w-4 h-4 text-blue-500" />
+      case "export_completed":
+        return <Download className="w-4 h-4 text-green-500" />
+      case "scene_updated":
+        return <Layers className="w-4 h-4 text-purple-500" />
+      case "translation_finished":
+        return <Globe className="w-4 h-4 text-orange-500" />
+      default:
+        return <Activity className="w-4 h-4 text-gray-500" />
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <RefreshCw className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Loading dashboard data...</span>
+      </div>
+    )
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">Failed to load dashboard data</p>
+          <Button onClick={fetchDashboardData}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const { projectStats, languageUsage, projectTrends, processingTimeData, systemMetrics, recentActivity } =
+    dashboardData
+
   return (
     <div className="space-y-6">
+      {/* Header with refresh button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Dashboard Analytics</h2>
+        <Button onClick={handleRefresh} variant="outline" size="sm">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
@@ -306,7 +281,7 @@ export function ProjectDashboard() {
                   <Cpu className="w-4 h-4" />
                   CPU Usage
                 </span>
-                <span>{systemMetrics.cpuUsage}%</span>
+                <span>{Math.round(systemMetrics.cpuUsage)}%</span>
               </div>
               <Progress value={systemMetrics.cpuUsage} className="h-2" />
             </div>
@@ -317,7 +292,7 @@ export function ProjectDashboard() {
                   <HardDrive className="w-4 h-4" />
                   Memory
                 </span>
-                <span>{systemMetrics.memoryUsage}%</span>
+                <span>{Math.round(systemMetrics.memoryUsage)}%</span>
               </div>
               <Progress value={systemMetrics.memoryUsage} className="h-2" />
             </div>
@@ -328,7 +303,7 @@ export function ProjectDashboard() {
                   <HardDrive className="w-4 h-4" />
                   Storage
                 </span>
-                <span>{systemMetrics.storageUsage}%</span>
+                <span>{Math.round(systemMetrics.storageUsage)}%</span>
               </div>
               <Progress value={systemMetrics.storageUsage} className="h-2" />
             </div>
@@ -361,7 +336,7 @@ export function ProjectDashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={projectTrendsData}>
+              <BarChart data={projectTrends}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -384,14 +359,14 @@ export function ProjectDashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={languageUsageData}
+                  data={languageUsage}
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
                   dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}%`}
+                  label={({ name, value }) => `${name}: ${value}`}
                 >
-                  {languageUsageData.map((entry, index) => (
+                  {languageUsage.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>

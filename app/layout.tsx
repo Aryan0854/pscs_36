@@ -16,7 +16,7 @@ const openSans = Open_Sans({
 })
 
 export const metadata: Metadata = {
-  title: "PSCS_36 - PIB Multilingual Video Platform",
+  title: "PIB Multilingual Video Platform",
   description: "AI-powered platform for converting PIB press releases into multilingual videos",
   generator: "v0.app",
 }

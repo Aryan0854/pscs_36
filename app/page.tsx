@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,12 +13,89 @@ import { ExportPipeline } from "@/components/export-pipeline"
 import { ProjectDashboard } from "@/components/project-dashboard"
 import { useToast } from "@/hooks/use-toast"
 import { SettingsModal } from "@/components/settings-modal"
+import { LoginModal } from "@/components/login-modal"
+import { supabase } from "@/lib/supabase/client"
 
-export default function PSCSPlatform() {
+export default function PIBPlatform() {
   const [activeProject, setActiveProject] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState<any>(null)
   const { toast } = useToast()
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const authSuccess = urlParams.get("auth_success")
+    const authError = urlParams.get("auth_error")
+
+    if (authSuccess) {
+      toast({
+        title: "Email Confirmed Successfully",
+        description: "Your account has been activated. You can now login with your credentials.",
+      })
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+
+    if (authError) {
+      toast({
+        title: "Authentication Error",
+        description: decodeURIComponent(authError),
+        variant: "destructive",
+      })
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+
+    const getInitialSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session?.user) {
+        setUser(session.user)
+        setIsAuthenticated(true)
+        await fetchUserProfile(session.user.id)
+      } else {
+        setLoginOpen(true)
+      }
+      setLoading(false)
+    }
+
+    getInitialSession()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setUser(session.user)
+        setIsAuthenticated(true)
+        setLoginOpen(false)
+        await fetchUserProfile(session.user.id)
+      } else {
+        setUser(null)
+        setUserProfile(null)
+        setIsAuthenticated(false)
+        setLoginOpen(true)
+      }
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [toast])
+
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const response = await fetch("/api/user-profile")
+      if (response.ok) {
+        const data = await response.json()
+        setUserProfile(data.profile)
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error)
+    }
+  }
 
   const supportedLanguages = [
     "Hindi",
@@ -68,6 +145,27 @@ export default function PSCSPlatform() {
     setSettingsOpen(true)
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    toast({
+      title: "Logged Out",
+      description: "You have been successfully logged out.",
+    })
+  }
+
+  const handleAuthSuccess = (userData: any) => {
+    setUser(userData)
+    setIsAuthenticated(true)
+    setLoginOpen(false)
+    if (userData.id) {
+      fetchUserProfile(userData.id)
+    }
+    toast({
+      title: "Welcome!",
+      description: `Successfully logged in as ${userData.user_metadata?.name || userData.email}`,
+    })
+  }
+
   const handleFileUpload = async () => {
     const input = document.createElement("input")
     input.type = "file"
@@ -94,7 +192,6 @@ export default function PSCSPlatform() {
               description: `${file.name} has been analyzed and scenes are ready for creation.`,
             })
 
-            // Auto-switch to scenes tab after successful processing
             setTimeout(() => {
               const scenesTab = document.querySelector('[value="scenes"]') as HTMLElement
               scenesTab?.click()
@@ -118,6 +215,25 @@ export default function PSCSPlatform() {
     input.click()
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Video className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading PIB Platform...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoginModal open={loginOpen} onOpenChange={setLoginOpen} onAuthSuccess={handleAuthSuccess} />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -130,8 +246,8 @@ export default function PSCSPlatform() {
                   <Video className="w-4 h-4 text-primary-foreground" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-foreground">PSCS_36</h1>
-                  <p className="text-sm text-muted-foreground">PIB Multilingual Video Platform</p>
+                  <h1 className="text-xl font-bold text-foreground">PIB Multilingual Video Platform</h1>
+                  <p className="text-sm text-muted-foreground">AI-Powered Press Release Video Generation</p>
                 </div>
               </div>
             </div>
@@ -140,9 +256,18 @@ export default function PSCSPlatform() {
                 <Globe className="w-3 h-3 mr-1" />
                 14 Languages
               </Badge>
+              {user && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Welcome, {userProfile?.full_name || user.user_metadata?.name || user.email}</span>
+                  <Badge variant="secondary">{userProfile?.role || user.user_metadata?.role || "User"}</Badge>
+                </div>
+              )}
               <Button variant="outline" size="sm" onClick={handleOpenSettings}>
                 <Settings className="w-4 h-4 mr-2" />
                 Settings
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                Logout
               </Button>
             </div>
           </div>
@@ -268,7 +393,13 @@ export default function PSCSPlatform() {
         </Tabs>
       </div>
 
-      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsModal
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        user={user}
+        userProfile={userProfile}
+        onLogout={handleLogout}
+      />
     </div>
   )
 }

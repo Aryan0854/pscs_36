@@ -1,94 +1,163 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { User, Globe, Palette, Download, Settings, LogIn, UserPlus, Eye, EyeOff } from "lucide-react"
+import { User, Globe, Palette, Download, Settings, LogOut } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface SettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  user: { name: string; email: string; role: string } | null
+  onLogout: () => void
 }
 
-export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+interface UserSettings {
+  theme: "light" | "dark" | "system"
+  defaultLanguage: string
+  enabledLanguages: string[]
+  notifications: boolean
+  autoSave: boolean
+  exportQuality: "high" | "medium" | "low"
+  exportFormat: "mp4" | "mov" | "avi"
+  parallelProcessing: boolean
+  autoDownload: boolean
+}
+
+export function SettingsModal({ open, onOpenChange, user, onLogout }: SettingsModalProps) {
   const [showPassword, setShowPassword] = useState(false)
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" })
-  const [signupForm, setSignupForm] = useState({ name: "", email: "", password: "", confirmPassword: "" })
-  const [userSettings, setUserSettings] = useState({
-    defaultLanguage: "hindi",
+  const [isLoading, setIsLoading] = useState(false)
+  const [settings, setSettings] = useState<UserSettings>({
     theme: "light",
+    defaultLanguage: "english",
+    enabledLanguages: ["english", "hindi"],
     notifications: true,
     autoSave: true,
     exportQuality: "high",
+    exportFormat: "mp4",
+    parallelProcessing: true,
+    autoDownload: true,
   })
   const { toast } = useToast()
 
-  const handleLogin = () => {
-    if (loginForm.email && loginForm.password) {
-      setIsLoggedIn(true)
-      toast({
-        title: "Login Successful",
-        description: `Welcome back! Logged in as ${loginForm.email}`,
-      })
-      setLoginForm({ email: "", password: "" })
-    } else {
-      toast({
-        title: "Login Failed",
-        description: "Please enter both email and password.",
-        variant: "destructive",
-      })
+  useEffect(() => {
+    if (user && open) {
+      loadUserSettings()
     }
-  }
+  }, [user, open])
 
-  const handleSignup = () => {
-    if (signupForm.name && signupForm.email && signupForm.password && signupForm.confirmPassword) {
-      if (signupForm.password !== signupForm.confirmPassword) {
-        toast({
-          title: "Signup Failed",
-          description: "Passwords do not match.",
-          variant: "destructive",
-        })
-        return
+  const loadUserSettings = async () => {
+    try {
+      const response = await fetch(`/api/settings?userId=${user?.email}`)
+      const result = await response.json()
+
+      if (result.success) {
+        setSettings(result.data)
+        applyTheme(result.data.theme)
       }
-      setIsLoggedIn(true)
-      toast({
-        title: "Account Created",
-        description: `Welcome ${signupForm.name}! Your account has been created successfully.`,
-      })
-      setSignupForm({ name: "", email: "", password: "", confirmPassword: "" })
-    } else {
-      toast({
-        title: "Signup Failed",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      })
+    } catch (error) {
+      console.error("Failed to load settings:", error)
     }
   }
 
-  const handleLogout = () => {
-    setIsLoggedIn(false)
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    })
+  const applyTheme = (theme: string) => {
+    const root = document.documentElement
+    if (theme === "dark") {
+      root.classList.add("dark")
+    } else if (theme === "light") {
+      root.classList.remove("dark")
+    } else {
+      // System theme
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      if (prefersDark) {
+        root.classList.add("dark")
+      } else {
+        root.classList.remove("dark")
+      }
+    }
   }
 
-  const handleSettingChange = (key: string, value: any) => {
-    setUserSettings((prev) => ({ ...prev, [key]: value }))
-    toast({
-      title: "Settings Updated",
-      description: `${key} has been updated successfully.`,
-    })
+  const handleSettingChange = async (key: keyof UserSettings, value: any) => {
+    const updatedSettings = { ...settings, [key]: value }
+    setSettings(updatedSettings)
+
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user?.email, ...updatedSettings }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        if (key === "theme") {
+          applyTheme(value)
+        }
+
+        toast({
+          title: "Settings Updated",
+          description: `${key} has been updated successfully.`,
+        })
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error) {
+      toast({
+        title: "Settings Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      })
+      // Revert the change
+      setSettings(settings)
+    }
+  }
+
+  const handleLanguageToggle = (language: string, enabled: boolean) => {
+    const updatedLanguages = enabled
+      ? [...settings.enabledLanguages, language.toLowerCase()]
+      : settings.enabledLanguages.filter((lang) => lang !== language.toLowerCase())
+
+    handleSettingChange("enabledLanguages", updatedLanguages)
+  }
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: "mock_google_credential" }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        toast({
+          title: "Google Login Successful",
+          description: "Successfully authenticated with Google",
+        })
+        window.location.reload()
+      } else {
+        throw new Error(result.error)
+      }
+    } catch (error) {
+      toast({
+        title: "Google Login Failed",
+        description: "Failed to authenticate with Google",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -102,155 +171,13 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           <DialogDescription>Manage your account, preferences, and platform configuration</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue={isLoggedIn ? "account" : "auth"} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="auth">Authentication</TabsTrigger>
-            <TabsTrigger value="account" disabled={!isLoggedIn}>
-              Account
-            </TabsTrigger>
+        <Tabs defaultValue="account" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="account">Account</TabsTrigger>
             <TabsTrigger value="preferences">Preferences</TabsTrigger>
             <TabsTrigger value="languages">Languages</TabsTrigger>
             <TabsTrigger value="export">Export</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="auth" className="space-y-4">
-            {!isLoggedIn ? (
-              <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="login">Login</TabsTrigger>
-                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="login">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <LogIn className="w-5 h-5" />
-                        Login to Your Account
-                      </CardTitle>
-                      <CardDescription>Access your projects and settings</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label htmlFor="login-email">Email</Label>
-                        <Input
-                          id="login-email"
-                          type="email"
-                          placeholder="your.email@gov.in"
-                          value={loginForm.email}
-                          onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="login-password">Password</Label>
-                        <div className="relative">
-                          <Input
-                            id="login-password"
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Enter your password"
-                            value={loginForm.password}
-                            onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3"
-                            onClick={() => setShowPassword(!showPassword)}
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </Button>
-                        </div>
-                      </div>
-                      <Button onClick={handleLogin} className="w-full">
-                        <LogIn className="w-4 h-4 mr-2" />
-                        Login
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="signup">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <UserPlus className="w-5 h-5" />
-                        Create New Account
-                      </CardTitle>
-                      <CardDescription>Join the PIB multilingual video platform</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label htmlFor="signup-name">Full Name</Label>
-                        <Input
-                          id="signup-name"
-                          placeholder="Your full name"
-                          value={signupForm.name}
-                          onChange={(e) => setSignupForm((prev) => ({ ...prev, name: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="signup-email">Email</Label>
-                        <Input
-                          id="signup-email"
-                          type="email"
-                          placeholder="your.email@gov.in"
-                          value={signupForm.email}
-                          onChange={(e) => setSignupForm((prev) => ({ ...prev, email: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="signup-password">Password</Label>
-                        <Input
-                          id="signup-password"
-                          type="password"
-                          placeholder="Create a strong password"
-                          value={signupForm.password}
-                          onChange={(e) => setSignupForm((prev) => ({ ...prev, password: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="confirm-password">Confirm Password</Label>
-                        <Input
-                          id="confirm-password"
-                          type="password"
-                          placeholder="Confirm your password"
-                          value={signupForm.confirmPassword}
-                          onChange={(e) => setSignupForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                        />
-                      </div>
-                      <Button onClick={handleSignup} className="w-full">
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Create Account
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="w-5 h-5" />
-                    Account Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">Logged in as: {loginForm.email || signupForm.email}</p>
-                      <Badge variant="default" className="mt-1">
-                        Active Session
-                      </Badge>
-                    </div>
-                    <Button variant="outline" onClick={handleLogout}>
-                      Logout
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
 
           <TabsContent value="account" className="space-y-4">
             <Card>
@@ -261,26 +188,34 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="display-name">Display Name</Label>
-                  <Input id="display-name" defaultValue={signupForm.name || "Government User"} />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" defaultValue={loginForm.email || signupForm.email} />
-                </div>
-                <div>
-                  <Label htmlFor="department">Department</Label>
-                  <Select defaultValue="pib">
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pib">Press Information Bureau</SelectItem>
-                      <SelectItem value="mib">Ministry of Information & Broadcasting</SelectItem>
-                      <SelectItem value="dit">Department of Information Technology</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {user && (
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                    <div>
+                      <p className="font-medium">{user.name}</p>
+                      <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <Badge variant="secondary" className="mt-1">
+                        {user.role}
+                      </Badge>
+                    </div>
+                    <Button variant="outline" onClick={onLogout}>
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Logout
+                    </Button>
+                  </div>
+                )}
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <h4 className="font-medium">Alternative Login Methods</h4>
+                  <Button
+                    variant="outline"
+                    onClick={handleGoogleLogin}
+                    disabled={isLoading}
+                    className="w-full bg-transparent"
+                  >
+                    {isLoading ? "Connecting..." : "Connect with Google"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -300,7 +235,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     <Label>Theme</Label>
                     <p className="text-sm text-muted-foreground">Choose your preferred interface theme</p>
                   </div>
-                  <Select value={userSettings.theme} onValueChange={(value) => handleSettingChange("theme", value)}>
+                  <Select value={settings.theme} onValueChange={(value) => handleSettingChange("theme", value)}>
                     <SelectTrigger className="w-32">
                       <SelectValue />
                     </SelectTrigger>
@@ -320,7 +255,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     <p className="text-sm text-muted-foreground">Receive processing and export notifications</p>
                   </div>
                   <Switch
-                    checked={userSettings.notifications}
+                    checked={settings.notifications}
                     onCheckedChange={(checked) => handleSettingChange("notifications", checked)}
                   />
                 </div>
@@ -331,7 +266,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     <p className="text-sm text-muted-foreground">Automatically save project changes</p>
                   </div>
                   <Switch
-                    checked={userSettings.autoSave}
+                    checked={settings.autoSave}
                     onCheckedChange={(checked) => handleSettingChange("autoSave", checked)}
                   />
                 </div>
@@ -351,15 +286,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <div>
                   <Label>Default Language</Label>
                   <Select
-                    value={userSettings.defaultLanguage}
+                    value={settings.defaultLanguage}
                     onValueChange={(value) => handleSettingChange("defaultLanguage", value)}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="hindi">Hindi</SelectItem>
                       <SelectItem value="english">English</SelectItem>
+                      <SelectItem value="hindi">Hindi</SelectItem>
                       <SelectItem value="bengali">Bengali</SelectItem>
                       <SelectItem value="tamil">Tamil</SelectItem>
                       <SelectItem value="telugu">Telugu</SelectItem>
@@ -397,7 +332,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                       "Maithili",
                     ].map((lang) => (
                       <div key={lang} className="flex items-center space-x-2">
-                        <Switch defaultChecked />
+                        <Switch
+                          checked={settings.enabledLanguages.includes(lang.toLowerCase())}
+                          onCheckedChange={(checked) => handleLanguageToggle(lang, checked)}
+                        />
                         <Label className="text-sm">{lang}</Label>
                       </div>
                     ))}
@@ -419,7 +357,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 <div>
                   <Label>Default Export Quality</Label>
                   <Select
-                    value={userSettings.exportQuality}
+                    value={settings.exportQuality}
                     onValueChange={(value) => handleSettingChange("exportQuality", value)}
                   >
                     <SelectTrigger>
@@ -435,7 +373,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
                 <div>
                   <Label>Export Format</Label>
-                  <Select defaultValue="mp4">
+                  <Select
+                    value={settings.exportFormat}
+                    onValueChange={(value) => handleSettingChange("exportFormat", value)}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -453,11 +394,17 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm">Parallel Processing</Label>
-                      <Switch defaultChecked />
+                      <Switch
+                        checked={settings.parallelProcessing}
+                        onCheckedChange={(checked) => handleSettingChange("parallelProcessing", checked)}
+                      />
                     </div>
                     <div className="flex items-center justify-between">
                       <Label className="text-sm">Auto-download on Completion</Label>
-                      <Switch defaultChecked />
+                      <Switch
+                        checked={settings.autoDownload}
+                        onCheckedChange={(checked) => handleSettingChange("autoDownload", checked)}
+                      />
                     </div>
                   </div>
                 </div>

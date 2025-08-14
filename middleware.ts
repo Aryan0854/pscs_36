@@ -5,21 +5,26 @@ import type { NextRequest } from "next/server"
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
 
-  // Create a Supabase client configured to use cookies
-  const supabase = createMiddlewareClient({ req, res })
+  try {
+    // Create a Supabase client configured to use cookies
+    const supabase = createMiddlewareClient({ req, res })
 
-  // Refresh session if expired - required for Server Components
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    // Refresh session if expired - required for Server Components
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
-  // Handle auth callback
-  if (req.nextUrl.pathname === "/auth/callback") {
-    const code = req.nextUrl.searchParams.get("code")
-    if (code) {
-      await supabase.auth.exchangeCodeForSession(code)
-      return NextResponse.redirect(new URL("/", req.url))
+    // Handle auth callback
+    if (req.nextUrl.pathname === "/auth/callback") {
+      const code = req.nextUrl.searchParams.get("code")
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code)
+        return NextResponse.redirect(new URL("/", req.url))
+      }
     }
+  } catch (error) {
+    // If Supabase is not properly configured, continue without auth
+    console.warn("Supabase middleware error (continuing without auth):", error)
   }
 
   return res

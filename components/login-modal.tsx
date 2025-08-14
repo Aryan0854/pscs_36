@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,21 +34,17 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
     role: "",
     department: "",
   })
+  const [redirectUrl, setRedirectUrl] = useState("")
   const { toast } = useToast()
 
-  const getRedirectUrl = () => {
-    // Use the current window location, but fallback to environment variable if available
-    const baseUrl =
-      typeof window !== "undefined"
-        ? window.location.origin
-        : process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
-
-    return `${baseUrl}/auth/callback`
-  }
+  useEffect(() => {
+    // Set redirect URL only on client side to avoid hydration mismatch
+    setRedirectUrl(`${window.location.origin}/auth/callback`)
+  }, [])
 
   const handleGoogleLogin = async () => {
     try {
-      const redirectUrl = getRedirectUrl()
+      if (!redirectUrl) return // Wait for redirect URL to be set
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -68,11 +64,21 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       // OAuth will redirect, so we don't need to handle success here
     } catch (error: any) {
       console.error("Google login error:", error)
-      toast({
-        title: "Google Login Failed",
-        description: error.message || "Failed to authenticate with Google. Please try again.",
-        variant: "destructive",
-      })
+      
+      if (error.message?.includes("Failed to fetch") || error.name === "AuthRetryableFetchError") {
+        toast({
+          title: "Connection Error",
+          description: "Unable to connect to authentication service. Please check your internet connection and try again.",
+          variant: "destructive",
+          duration: 8000,
+        })
+      } else {
+        toast({
+          title: "Google Login Failed",
+          description: error.message || "Failed to authenticate with Google. Please try again.",
+          variant: "destructive",
+        })
+      }
     }
   }
 
@@ -113,7 +119,15 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       } catch (error: any) {
         console.error("Login error:", error)
 
-        if (error.message?.includes("Email not confirmed") || error.message?.includes("email_not_confirmed")) {
+        // Handle network/connection errors
+        if (error.message?.includes("Failed to fetch") || error.name === "AuthRetryableFetchError") {
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to authentication service. Please check your internet connection and try again.",
+            variant: "destructive",
+            duration: 8000,
+          })
+        } else if (error.message?.includes("Email not confirmed") || error.message?.includes("email_not_confirmed")) {
           setNeedsConfirmation(true)
           setConfirmationEmail(loginData.email)
           toast({
@@ -166,7 +180,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
 
     startTransition(async () => {
       try {
-        const redirectUrl = getRedirectUrl()
+        if (!redirectUrl) return // Wait for redirect URL to be set
 
         const { data, error } = await supabase.auth.signUp({
           email: signupData.email.trim(),
@@ -213,11 +227,21 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
         }
       } catch (error: any) {
         console.error("Signup error:", error)
-        toast({
-          title: "Signup Failed",
-          description: error.message || "Failed to create account. Please try again.",
-          variant: "destructive",
-        })
+        
+        if (error.message?.includes("Failed to fetch") || error.name === "AuthRetryableFetchError") {
+          toast({
+            title: "Connection Error",
+            description: "Unable to connect to authentication service. Please check your internet connection and try again.",
+            variant: "destructive",
+            duration: 8000,
+          })
+        } else {
+          toast({
+            title: "Signup Failed",
+            description: error.message || "Failed to create account. Please try again.",
+            variant: "destructive",
+          })
+        }
       }
     })
   }
@@ -225,7 +249,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
   const handleResendConfirmation = async (email: string) => {
     setIsResending(true)
     try {
-      const redirectUrl = getRedirectUrl()
+      if (!redirectUrl) return // Wait for redirect URL to be set
 
       const { error } = await supabase.auth.resend({
         type: "signup",
@@ -246,11 +270,21 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       })
     } catch (error: any) {
       console.error("Resend confirmation error:", error)
-      toast({
-        title: "Failed to Resend Email",
-        description: error.message || "Could not resend confirmation email. Please try again.",
-        variant: "destructive",
-      })
+      
+      if (error.message?.includes("Failed to fetch") || error.name === "AuthRetryableFetchError") {
+        toast({
+          title: "Connection Error",
+          description: "Unable to connect to authentication service. Please check your internet connection and try again.",
+          variant: "destructive",
+          duration: 8000,
+        })
+      } else {
+        toast({
+          title: "Failed to Resend Email",
+          description: error.message || "Could not resend confirmation email. Please try again.",
+          variant: "destructive",
+        })
+      }
     } finally {
       setIsResending(false)
     }

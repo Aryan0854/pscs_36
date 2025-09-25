@@ -7,28 +7,27 @@ export async function POST(request: NextRequest) {
   try {
     console.log("Audio generation API called")
     const formData = await request.formData()
-    const file = formData.get('file') as File
+    const text = formData.get('text') as string
     const personasJson = formData.get('personas') as string
     const numHosts = formData.get('numHosts') as string
 
-    console.log("File received:", file?.name, "Size:", file?.size)
+    console.log("Text received:", text?.substring(0, 100) + "...")
     console.log("Personas config:", personasJson)
     console.log("Number of hosts:", numHosts)
 
-    if (!file) {
-      console.log("No file provided")
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    if (!text || !text.trim()) {
+      console.log("No text provided")
+      return NextResponse.json({ error: 'No text provided' }, { status: 400 })
     }
 
-    // Save uploaded file temporarily
+    // Save text to temporary file
     const tempDir = path.join(process.cwd(), 'temp')
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true })
     }
 
-    const filePath = path.join(tempDir, `upload_${Date.now()}_${file.name}`)
-    const buffer = Buffer.from(await file.arrayBuffer())
-    fs.writeFileSync(filePath, buffer)
+    const filePath = path.join(tempDir, `text_${Date.now()}.txt`)
+    fs.writeFileSync(filePath, text)
 
     // Run the Python audio generation script
     const audioScriptPath = path.join(process.cwd(), '5(Audio)', 'process_file.py')

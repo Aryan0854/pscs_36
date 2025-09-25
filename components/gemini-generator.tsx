@@ -31,6 +31,7 @@ interface AudioResult {
 }
 
 interface GeminiGeneratorProps {
+  scriptText?: string
   onAudioGenerated?: (audioUrl: string, transcriptUrl: string) => void
 }
 
@@ -42,8 +43,7 @@ interface VoicePersona {
   sampleUrl?: string
 }
 
-export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorProps) {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+export default function GeminiGenerator({ scriptText: propScriptText, onAudioGenerated }: GeminiGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
   const [result, setResult] = useState<AudioResult | null>(null)
@@ -54,21 +54,19 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
     { id: '3', name: 'Emma Thompson', gender: 'female', voiceType: 'engaging' }
   ])
   const [playingSample, setPlayingSample] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [localScriptText, setLocalScriptText] = useState("")
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setUploadedFile(file)
-      setResult(null)
-    }
-  }
+  // Use prop script text if provided, otherwise use local state
+  const scriptText = propScriptText || localScriptText
+  const setScriptText = propScriptText ? () => {} : setLocalScriptText
+
+  // Component will receive script text as prop or from context
 
   const handleGenerate = async () => {
-    if (!uploadedFile) {
+    if (!scriptText.trim()) {
       toast({
-        title: "File Required",
-        description: "Please select a document file to generate audio discussion.",
+        title: "Script Required",
+        description: "Please provide script text to generate audio discussion.",
         variant: "destructive",
       })
       return
@@ -84,11 +82,11 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
     }, 500)
 
     try {
-      console.log("Starting audio generation with file:", uploadedFile.name)
+      console.log("Starting audio generation with script text")
       console.log("Using personas:", personas.slice(0, numHosts))
 
       const formData = new FormData()
-      formData.append('file', uploadedFile)
+      formData.append('text', scriptText)
       formData.append('personas', JSON.stringify(personas.slice(0, numHosts)))
       formData.append('numHosts', numHosts.toString())
 
@@ -229,46 +227,18 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="file-upload">Upload Document</Label>
-            <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-              <input
-                ref={fileInputRef}
-                type="file"
-                id="file-upload"
-                accept=".txt,.pdf,.docx,.doc,.html,.htm,.rtf"
-                onChange={handleFileSelect}
-                className="hidden"
+            <Label>Script Text</Label>
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <Textarea
+                value={scriptText}
+                onChange={(e) => setScriptText(e.target.value)}
+                readOnly={!!propScriptText}
+                placeholder={propScriptText ? "Script text from Script Editor" : "Enter or paste your script text here. This will be used to generate the AI audio discussion."}
+                className="min-h-[150px] resize-none"
               />
-              {uploadedFile ? (
-                <div className="space-y-2">
-                  <FileText className="h-8 w-8 text-green-500 mx-auto" />
-                  <p className="text-sm font-medium">{uploadedFile.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    Change File
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
-                  <p className="text-sm font-medium">Drop your document here</p>
-                  <p className="text-xs text-muted-foreground">
-                    Supports PDF, DOCX, TXT, HTML, RTF files (max 16MB)
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    Choose File
-                  </Button>
-                </div>
-              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                {scriptText.length} characters • {propScriptText ? "Using text from Script Editor" : "This text will be converted into a multi-persona AI discussion"}
+              </p>
             </div>
           </div>
 
@@ -355,7 +325,7 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
 
           <Button
             onClick={handleGenerate}
-            disabled={isGenerating || !uploadedFile}
+            disabled={isGenerating || !scriptText.trim()}
             className="w-full"
             size="lg"
           >

@@ -531,7 +531,7 @@ export default function PIBPlatform() {
           </TabsContent>
 
           <TabsContent value="gen-audio">
-            <GeminiGenerator />
+            <GeminiGenerator scriptText={extractedText} />
           </TabsContent>
 
           <TabsContent value="scenes">

@@ -138,32 +138,96 @@ def generate_conversation_with_personas(summary: str, personas: list) -> list:
 
 
 def generate_simple_audio(conversation: list, filename: str) -> str:
-    """Generate simple audio file."""
+    """Generate audio file with text-to-speech."""
     try:
-        import numpy as np
-        import soundfile as sf
+        from gtts import gTTS
+        import pygame
+        from pydub import AudioSegment
+        import io
 
-        # Create a simple audio file with silence
-        duration = len(conversation) * 2  # 2 seconds per turn
-        sample_rate = 22050
-        samples = int(duration * sample_rate)
-
-        # Generate silence
-        audio_data = np.zeros(samples, dtype=np.float32)
-
-        # Save audio file
+        # Create output directory
         output_path = Path('outputs/audio') / filename
-        sf.write(str(output_path), audio_data, sample_rate)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Generated simple audio: {output_path}")
+        # Combine all dialogue into a single audio file
+        combined_audio = AudioSegment.empty()
+
+        for i, turn in enumerate(conversation):
+            text = f"{turn['speaker']}: {turn['content']}"
+
+            # Generate TTS audio for this turn
+            tts = gTTS(text=text, lang='en', slow=False)
+
+            # Save to temporary buffer
+            temp_buffer = io.BytesIO()
+            tts.write_to_fp(temp_buffer)
+            temp_buffer.seek(0)
+
+            # Load audio segment
+            audio_segment = AudioSegment.from_mp3(temp_buffer)
+
+            # Add a short pause between speakers
+            if i > 0:
+                combined_audio += AudioSegment.silent(duration=500)  # 0.5 second pause
+
+            combined_audio += audio_segment
+
+        # Export as WAV
+        combined_audio.export(str(output_path), format='wav')
+
+        logger.info(f"Generated TTS audio: {output_path}")
         return str(output_path)
+
+    except ImportError as e:
+        logger.warning(f"TTS libraries not available: {str(e)}. Falling back to simple audio.")
+        # Fallback to simple audio generation
+        try:
+            import numpy as np
+            import soundfile as sf
+
+            # Create a simple audio file with silence
+            duration = len(conversation) * 2  # 2 seconds per turn
+            sample_rate = 22050
+            samples = int(duration * sample_rate)
+
+            # Generate silence
+            audio_data = np.zeros(samples, dtype=np.float32)
+
+            # Save audio file
+            output_path = Path('outputs/audio') / filename
+            sf.write(str(output_path), audio_data, sample_rate)
+
+            logger.info(f"Generated fallback audio: {output_path}")
+            return str(output_path)
+
+        except Exception as fallback_error:
+            logger.error(f"Fallback audio generation failed: {str(fallback_error)}")
+            # Create empty file
+            output_path = Path('outputs/audio') / filename
+            output_path.touch()
+            return str(output_path)
 
     except Exception as e:
-        logger.warning(f"Could not generate audio: {str(e)}")
-        # Create empty file
-        output_path = Path('outputs/audio') / filename
-        output_path.touch()
-        return str(output_path)
+        logger.error(f"TTS generation failed: {str(e)}")
+        # Fallback to simple audio
+        try:
+            import numpy as np
+            import soundfile as sf
+
+            duration = len(conversation) * 2
+            sample_rate = 22050
+            samples = int(duration * sample_rate)
+            audio_data = np.zeros(samples, dtype=np.float32)
+
+            output_path = Path('outputs/audio') / filename
+            sf.write(str(output_path), audio_data, sample_rate)
+
+            return str(output_path)
+        except Exception as fallback_error:
+            logger.error(f"Complete fallback failed: {str(fallback_error)}")
+            output_path = Path('outputs/audio') / filename
+            output_path.touch()
+            return str(output_path)
 
 
 def save_transcript(conversation: list, filename: str) -> str:

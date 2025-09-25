@@ -1,0 +1,11 @@
+{
+  "projectId": "pibcapstone",
+  "orgId": "your-org-id",
+  "settings": {
+    "framework": "nextjs",
+    "buildCommand": "pnpm run build",
+    "installCommand": "pnpm install",
+    "outputDirectory": ".next",
+    "nodeVersion": "18.17.0"
+  }
+}

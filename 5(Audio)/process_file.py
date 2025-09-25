@@ -156,7 +156,7 @@ def generate_simple_audio(conversation: list, filename: str, personas: list = No
             persona_name = turn['speaker']
             persona = next((p for p in personas if p['name'] == persona_name), None)
 
-            # Customize TTS based on persona voice type
+            # Customize TTS based on persona voice type with distinct voices
             lang = 'en'
             slow = False
             tld = 'com'  # Default Google domain
@@ -164,35 +164,45 @@ def generate_simple_audio(conversation: list, filename: str, personas: list = No
             if persona and 'voiceType' in persona:
                 voice_type = persona['voiceType']
                 if voice_type == 'calm':
+                    lang = 'en'
                     slow = True
-                    tld = 'co.uk'  # British English for calmer tone
+                    tld = 'co.uk'  # British English - sophisticated, measured
                 elif voice_type == 'energetic':
+                    lang = 'en'
                     slow = False
-                    tld = 'com.au'  # Australian English for energetic
+                    tld = 'com.au'  # Australian English - lively, enthusiastic
                 elif voice_type == 'authoritative':
+                    lang = 'en'
                     slow = True
-                    tld = 'co.uk'  # British English for authoritative
+                    tld = 'co.uk'  # British English - commanding, formal
                 elif voice_type == 'engaging':
+                    lang = 'en'
                     slow = False
-                    tld = 'com'  # American English for engaging
+                    tld = 'com'  # American English - warm, engaging
                 elif voice_type == 'professional':
+                    lang = 'en'
                     slow = False
-                    tld = 'com'  # Standard American
+                    tld = 'us'  # American English - clear, professional
                 elif voice_type == 'warm':
+                    lang = 'en'
                     slow = False
-                    tld = 'co.in'  # Indian English for warm tone
+                    tld = 'co.in'  # Indian English - gentle, warm
                 elif voice_type == 'confident':
+                    lang = 'en'
                     slow = False
-                    tld = 'com'  # American for confident
+                    tld = 'com'  # American English - strong, confident
                 elif voice_type == 'friendly':
+                    lang = 'en'
                     slow = False
-                    tld = 'co.nz'  # New Zealand English for friendly
+                    tld = 'co.nz'  # New Zealand English - cheerful, friendly
                 elif voice_type == 'formal':
+                    lang = 'en'
                     slow = True
-                    tld = 'co.uk'  # British for formal
+                    tld = 'ca'  # Canadian English - proper, formal
                 elif voice_type == 'casual':
+                    lang = 'en'
                     slow = False
-                    tld = 'us'  # American casual
+                    tld = 'ie'  # Irish English - relaxed, casual
 
             # Generate TTS for this turn
             tts = gTTS(text=text, lang=lang, slow=slow, tld=tld)

@@ -195,62 +195,83 @@ export default function GeminiGenerator({ scriptText: propScriptText, onAudioGen
           utterance.voice = preferredVoice
         }
 
-        // Adjust speech parameters dramatically based on voice type for distinct personalities
+        // Adjust speech parameters dramatically based on voice type for truly distinct personalities
         switch (persona.voiceType) {
           case 'calm':
-            utterance.rate = 0.7  // Very slow and deliberate
-            utterance.pitch = 0.8  // Lower pitch
-            utterance.volume = 0.8 // Softer volume
+            utterance.rate = 0.6  // Extremely slow and deliberate
+            utterance.pitch = 0.75 // Very low, soothing pitch
+            utterance.volume = 0.7 // Soft, gentle volume
             break
           case 'energetic':
-            utterance.rate = 1.4  // Fast and lively
-            utterance.pitch = 1.2  // Higher pitch
-            utterance.volume = 1.0 // Full volume
+            utterance.rate = 1.6  // Very fast and animated
+            utterance.pitch = 1.3  // High, excited pitch
+            utterance.volume = 1.0 // Full, enthusiastic volume
             break
           case 'authoritative':
-            utterance.rate = 0.8  // Slow and commanding
-            utterance.pitch = 0.7  // Very low pitch
-            utterance.volume = 1.0 // Strong volume
+            utterance.rate = 0.75 // Slow and deliberate
+            utterance.pitch = 0.65 // Deep, commanding pitch
+            utterance.volume = 1.1 // Powerful volume
             break
           case 'engaging':
-            utterance.rate = 1.1  // Slightly faster
-            utterance.pitch = 1.1  // Slightly higher
-            utterance.volume = 0.9 // Warm volume
+            utterance.rate = 1.2  // Lively pace
+            utterance.pitch = 1.15 // Warm, engaging pitch
+            utterance.volume = 0.95 // Inviting volume
             break
           case 'professional':
-            utterance.rate = 0.95 // Steady pace
-            utterance.pitch = 0.95 // Neutral pitch
-            utterance.volume = 0.9 // Professional volume
+            utterance.rate = 0.9  // Steady, measured pace
+            utterance.pitch = 0.9  // Clear, professional pitch
+            utterance.volume = 0.95 // Confident volume
             break
           case 'warm':
-            utterance.rate = 0.9  // Comfortable pace
-            utterance.pitch = 1.0  // Natural pitch
-            utterance.volume = 0.85 // Warm volume
+            utterance.rate = 0.85 // Comfortable, flowing pace
+            utterance.pitch = 1.05 // Gentle, warm pitch
+            utterance.volume = 0.8 // Soft, nurturing volume
             break
           case 'confident':
-            utterance.rate = 1.0  // Confident pace
-            utterance.pitch = 0.9  // Assured pitch
-            utterance.volume = 1.0 // Confident volume
+            utterance.rate = 1.05 // Assured pace
+            utterance.pitch = 0.85 // Strong, confident pitch
+            utterance.volume = 1.0 // Bold volume
             break
           case 'friendly':
-            utterance.rate = 1.05 // Friendly pace
-            utterance.pitch = 1.05 // Friendly pitch
-            utterance.volume = 0.9 // Approachable volume
+            utterance.rate = 1.1  // Welcoming pace
+            utterance.pitch = 1.1  // Cheerful, friendly pitch
+            utterance.volume = 0.9 // Warm, approachable volume
             break
           case 'formal':
-            utterance.rate = 0.85 // Formal pace
-            utterance.pitch = 0.85 // Formal pitch
-            utterance.volume = 0.9 // Formal volume
+            utterance.rate = 0.8  // Measured, formal pace
+            utterance.pitch = 0.8  // Refined, proper pitch
+            utterance.volume = 0.85 // Dignified volume
             break
           case 'casual':
-            utterance.rate = 1.1  // Casual pace
-            utterance.pitch = 1.0  // Natural pitch
-            utterance.volume = 0.95 // Casual volume
+            utterance.rate = 1.15 // Relaxed, conversational pace
+            utterance.pitch = 0.95 // Easy-going pitch
+            utterance.volume = 0.9 // Natural, casual volume
             break
           default:
             utterance.rate = 1.0
             utterance.pitch = 1.0
             utterance.volume = 1.0
+        }
+
+        // Try to select different voices based on personality if available
+        const availableVoices = speechSynthesis.getVoices()
+        let selectedVoice = null
+
+        // Voice selection based on personality and gender
+        if (persona.voiceType === 'calm' && persona.gender === 'female') {
+          selectedVoice = availableVoices.find(v => v.name.toLowerCase().includes('karen') || v.name.toLowerCase().includes('samantha'))
+        } else if (persona.voiceType === 'energetic' && persona.gender === 'male') {
+          selectedVoice = availableVoices.find(v => v.name.toLowerCase().includes('alex') || v.name.toLowerCase().includes('daniel'))
+        } else if (persona.voiceType === 'authoritative' && persona.gender === 'male') {
+          selectedVoice = availableVoices.find(v => v.name.toLowerCase().includes('tom') || v.name.toLowerCase().includes('lee'))
+        } else if (persona.voiceType === 'warm' && persona.gender === 'female') {
+          selectedVoice = availableVoices.find(v => v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('susan'))
+        } else if (persona.voiceType === 'professional') {
+          selectedVoice = availableVoices.find(v => v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('tom'))
+        }
+
+        if (selectedVoice) {
+          utterance.voice = selectedVoice
         }
 
         utterance.onend = () => setPlayingSample(null)

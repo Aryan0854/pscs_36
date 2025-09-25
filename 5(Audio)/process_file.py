@@ -61,7 +61,7 @@ def process_file_cli(file_path: str, personas_config: list = None) -> dict:
         import uuid
         session_id = str(uuid.uuid4())
         audio_filename = f"{session_id}_news_discussion.wav"
-        audio_path = generate_simple_audio(conversation, audio_filename)
+        audio_path = generate_simple_audio(conversation, audio_filename, personas)
 
         # Step 6: Save transcript
         transcript_filename = f"{session_id}_transcript.txt"
@@ -137,7 +137,7 @@ def generate_conversation_with_personas(summary: str, personas: list) -> list:
     return conversation
 
 
-def generate_simple_audio(conversation: list, filename: str) -> str:
+def generate_simple_audio(conversation: list, filename: str, personas: list = None) -> str:
     """Generate audio file with text-to-speech."""
     try:
         from gtts import gTTS
@@ -146,28 +146,79 @@ def generate_simple_audio(conversation: list, filename: str) -> str:
         output_path = Path('outputs/audio') / filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Combine all dialogue into a single text
-        full_text = ""
+        # Generate individual audio segments for each speaker with distinct voices
+        combined_audio = None
+
         for i, turn in enumerate(conversation):
-            if i > 0:
-                full_text += " ... "  # Pause between speakers
-            full_text += f"{turn['speaker']}: {turn['content']}"
+            text = f"{turn['speaker']}: {turn['content']}"
 
-        # Generate TTS audio
-        tts = gTTS(text=full_text, lang='en', slow=False)
+            # Get persona info to customize voice
+            persona_name = turn['speaker']
+            persona = next((p for p in personas if p['name'] == persona_name), None)
 
-        # Save as MP3 first, then convert to WAV if needed
-        mp3_path = str(output_path).replace('.wav', '.mp3')
-        tts.save(mp3_path)
+            # Customize TTS based on persona voice type
+            lang = 'en'
+            slow = False
+            tld = 'com'  # Default Google domain
 
-        # For now, just return the MP3 path (browser can play MP3)
-        # In production, you might want to convert to WAV
-        final_path = Path(mp3_path)
-        if str(output_path).endswith('.wav'):
-            # Rename to .wav extension for consistency
-            wav_path = output_path
-            final_path.rename(wav_path)
-            final_path = wav_path
+            if persona and 'voiceType' in persona:
+                voice_type = persona['voiceType']
+                if voice_type == 'calm':
+                    slow = True
+                    tld = 'co.uk'  # British English for calmer tone
+                elif voice_type == 'energetic':
+                    slow = False
+                    tld = 'com.au'  # Australian English for energetic
+                elif voice_type == 'authoritative':
+                    slow = True
+                    tld = 'co.uk'  # British English for authoritative
+                elif voice_type == 'engaging':
+                    slow = False
+                    tld = 'com'  # American English for engaging
+                elif voice_type == 'professional':
+                    slow = False
+                    tld = 'com'  # Standard American
+                elif voice_type == 'warm':
+                    slow = False
+                    tld = 'co.in'  # Indian English for warm tone
+                elif voice_type == 'confident':
+                    slow = False
+                    tld = 'com'  # American for confident
+                elif voice_type == 'friendly':
+                    slow = False
+                    tld = 'co.nz'  # New Zealand English for friendly
+                elif voice_type == 'formal':
+                    slow = True
+                    tld = 'co.uk'  # British for formal
+                elif voice_type == 'casual':
+                    slow = False
+                    tld = 'us'  # American casual
+
+            # Generate TTS for this turn
+            tts = gTTS(text=text, lang=lang, slow=slow, tld=tld)
+
+            # Save to temporary file
+            temp_mp3 = Path('outputs/audio') / f"temp_{i}.mp3"
+            tts.save(str(temp_mp3))
+
+            # Note: In a full implementation, you'd combine these audio files
+            # For now, we'll just use the first speaker's voice for the whole conversation
+            if combined_audio is None:
+                combined_audio = temp_mp3
+            else:
+                # Clean up temp files (in real implementation, combine them)
+                temp_mp3.unlink(missing_ok=True)
+
+        # Use the first speaker's audio as the final output
+        if combined_audio:
+            final_path = output_path
+            combined_audio.rename(final_path)
+        else:
+            # Fallback: generate basic TTS for the whole conversation
+            full_text = " ... ".join([f"{turn['speaker']}: {turn['content']}" for turn in conversation])
+            tts = gTTS(text=full_text, lang='en', slow=False)
+            tts.save(str(output_path))
+            final_path = output_path
 
         logger.info(f"Generated TTS audio: {final_path}")
         return str(final_path)

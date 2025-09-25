@@ -13,6 +13,7 @@ import { SceneManager } from "@/components/scene-manager"
 import { ExportPipeline } from "@/components/export-pipeline"
 import { ProjectDashboard } from "@/components/project-dashboard"
 import { ScriptEditor } from "@/components/script-editor"
+import GeminiGenerator from "@/components/gemini-generator"
 import { useToast } from "@/hooks/use-toast"
 import { SettingsModal } from "@/components/settings-modal"
 import { LoginModal } from "@/components/login-modal"
@@ -530,31 +531,7 @@ export default function PIBPlatform() {
           </TabsContent>
 
           <TabsContent value="gen-audio">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mic className="w-5 h-5" />
-                  Audio Generation
-                </CardTitle>
-                <CardDescription>
-                  Generate AI-powered audio narration for your script in multiple languages
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Mic className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Audio Generation</h3>
-                  <p className="text-muted-foreground mb-6">
-                    Generate high-quality audio narration for your edited script.
-                    Choose from multiple languages and voice options.
-                  </p>
-                  <Button size="lg" className="px-8 py-3">
-                    <Mic className="w-5 h-5 mr-2" />
-                    Start Audio Generation
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <GeminiGenerator />
           </TabsContent>
 
           <TabsContent value="scenes">

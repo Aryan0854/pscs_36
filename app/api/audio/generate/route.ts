@@ -8,7 +8,12 @@ export async function POST(request: NextRequest) {
     console.log("Audio generation API called")
     const formData = await request.formData()
     const file = formData.get('file') as File
+    const personasJson = formData.get('personas') as string
+    const numHosts = formData.get('numHosts') as string
+
     console.log("File received:", file?.name, "Size:", file?.size)
+    console.log("Personas config:", personasJson)
+    console.log("Number of hosts:", numHosts)
 
     if (!file) {
       console.log("No file provided")
@@ -29,10 +34,16 @@ export async function POST(request: NextRequest) {
     const audioScriptPath = path.join(process.cwd(), '5(Audio)', 'process_file.py')
     console.log("Python script path:", audioScriptPath)
     console.log("Working directory:", path.join(process.cwd(), '5(Audio)'))
-    console.log("Command: python", [audioScriptPath, filePath])
+
+    const args = [audioScriptPath, filePath]
+    if (personasJson) {
+      args.push(personasJson)
+    }
+
+    console.log("Command: python", args)
 
     return new Promise((resolve) => {
-      const pythonProcess = spawn('python', [audioScriptPath, filePath], {
+      const pythonProcess = spawn('python', args, {
         cwd: path.join(process.cwd(), '5(Audio)'),
         stdio: ['pipe', 'pipe', 'pipe']
       })

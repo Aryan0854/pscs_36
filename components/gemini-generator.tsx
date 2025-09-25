@@ -2,7 +2,9 @@
 
 import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
@@ -32,11 +34,26 @@ interface GeminiGeneratorProps {
   onAudioGenerated?: (audioUrl: string, transcriptUrl: string) => void
 }
 
+interface VoicePersona {
+  id: string
+  name: string
+  gender: 'male' | 'female'
+  voiceType: string
+  sampleUrl?: string
+}
+
 export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorProps) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
   const [result, setResult] = useState<AudioResult | null>(null)
+  const [numHosts, setNumHosts] = useState(3)
+  const [personas, setPersonas] = useState<VoicePersona[]>([
+    { id: '1', name: 'Sarah Chen', gender: 'female', voiceType: 'professional' },
+    { id: '2', name: 'Dr. Michael Rodriguez', gender: 'male', voiceType: 'authoritative' },
+    { id: '3', name: 'Emma Thompson', gender: 'female', voiceType: 'engaging' }
+  ])
+  const [playingSample, setPlayingSample] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,8 +85,12 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
 
     try {
       console.log("Starting audio generation with file:", uploadedFile.name)
+      console.log("Using personas:", personas.slice(0, numHosts))
+
       const formData = new FormData()
       formData.append('file', uploadedFile)
+      formData.append('personas', JSON.stringify(personas.slice(0, numHosts)))
+      formData.append('numHosts', numHosts.toString())
 
       console.log("Making API call to /api/audio/generate")
       const response = await fetch("/api/audio/generate", {
@@ -125,6 +146,67 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
     document.body.removeChild(link)
   }
 
+  const updateNumHosts = (newNum: number) => {
+    setNumHosts(newNum)
+    setPersonas(prev => {
+      const updated = [...prev]
+      if (newNum > prev.length) {
+        // Add new personas
+        for (let i = prev.length; i < newNum; i++) {
+          updated.push({
+            id: `${i + 1}`,
+            name: `Host ${i + 1}`,
+            gender: 'male' as const,
+            voiceType: 'neutral'
+          })
+        }
+      } else if (newNum < prev.length) {
+        // Remove excess personas
+        updated.splice(newNum)
+      }
+      return updated
+    })
+  }
+
+  const updatePersona = (id: string, field: keyof VoicePersona, value: any) => {
+    setPersonas(prev => prev.map(p =>
+      p.id === id ? { ...p, [field]: value } : p
+    ))
+  }
+
+  const playVoiceSample = async (persona: VoicePersona) => {
+    setPlayingSample(persona.id)
+    try {
+      // Generate a sample audio for this persona
+      const response = await fetch('/api/audio/sample', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: `Hello, this is ${persona.name} speaking. I am a ${persona.gender} voice with a ${persona.voiceType} tone.`,
+          gender: persona.gender,
+          voiceType: persona.voiceType
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.audioUrl) {
+          const audio = new Audio(data.audioUrl)
+          audio.onended = () => setPlayingSample(null)
+          audio.play()
+        }
+      }
+    } catch (error) {
+      console.error('Failed to play voice sample:', error)
+      setPlayingSample(null)
+    }
+  }
+
+  const voiceTypes = [
+    'professional', 'authoritative', 'engaging', 'warm', 'energetic',
+    'calm', 'confident', 'friendly', 'formal', 'casual'
+  ]
+
   return (
     <div className="space-y-6">
       <Card>
@@ -145,7 +227,7 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
             <Badge variant="secondary">No API Dependencies</Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="file-upload">Upload Document</Label>
             <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
@@ -187,6 +269,87 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
                   </Button>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>Number of Hosts</Label>
+              <Select value={numHosts.toString()} onValueChange={(value) => updateNumHosts(parseInt(value))}>
+                <SelectTrigger className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[2, 3, 4, 5].map(num => (
+                    <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Configure Host Voices</Label>
+              {personas.slice(0, numHosts).map((persona, index) => (
+                <Card key={persona.id} className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Host {index + 1} Name</Label>
+                      <Input
+                        value={persona.name}
+                        onChange={(e) => updatePersona(persona.id, 'name', e.target.value)}
+                        placeholder="Enter name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Gender</Label>
+                      <Select
+                        value={persona.gender}
+                        onValueChange={(value: 'male' | 'female') => updatePersona(persona.id, 'gender', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Voice Type</Label>
+                      <Select
+                        value={persona.voiceType}
+                        onValueChange={(value) => updatePersona(persona.id, 'voiceType', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {voiceTypes.map(type => (
+                            <SelectItem key={type} value={type}>
+                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => playVoiceSample(persona)}
+                        disabled={playingSample === persona.id}
+                      >
+                        {playingSample === persona.id ? (
+                          <>🔊 Playing...</>
+                        ) : (
+                          <>🎧 Sample</>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
           </div>
 

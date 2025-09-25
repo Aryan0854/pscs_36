@@ -22,12 +22,22 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def process_file_cli(file_path: str) -> dict:
+def process_file_cli(file_path: str, personas_config: list = None) -> dict:
     """Process a single file and return results as dict."""
     try:
         # Initialize components
         file_parser = FileParser()
         text_preprocessor = TextPreprocessor()
+
+        # Use provided personas or default ones
+        if personas_config and len(personas_config) > 0:
+            personas = personas_config
+        else:
+            personas = [
+                {'name': 'Sarah Chen', 'type': 'anchor', 'expertise': 'General news'},
+                {'name': 'Dr. Michael Rodriguez', 'type': 'expert', 'expertise': 'Technology'},
+                {'name': 'Emma Thompson', 'type': 'reporter', 'expertise': 'Breaking news'}
+            ]
 
         # Step 1: Parse file
         logger.info(f"Parsing file: {file_path}")
@@ -42,9 +52,9 @@ def process_file_cli(file_path: str) -> dict:
         sentences = preprocessed['sentences']
         summary = '. '.join(sentences[:3]) + '.' if len(sentences) >= 3 else '. '.join(sentences)
 
-        # Step 4: Generate simple conversation
+        # Step 4: Generate conversation using provided personas
         logger.info("Generating conversation...")
-        conversation = generate_simple_conversation(summary)
+        conversation = generate_conversation_with_personas(summary, personas)
 
         # Step 5: Generate simple audio
         logger.info("Generating audio...")
@@ -64,11 +74,7 @@ def process_file_cli(file_path: str) -> dict:
             'success': True,
             'original_text': parsed_content['text'][:500] + "..." if len(parsed_content['text']) > 500 else parsed_content['text'],
             'summary': summary,
-            'personas': [
-                {'name': 'Sarah Chen', 'type': 'anchor', 'expertise': 'General news'},
-                {'name': 'Dr. Michael Rodriguez', 'type': 'expert', 'expertise': 'Technology'},
-                {'name': 'Emma Thompson', 'type': 'reporter', 'expertise': 'Breaking news'}
-            ],
+            'personas': personas,
             'dialogue': conversation,
             'audio_file': audio_filename,
             'transcript_file': transcript_filename,
@@ -88,30 +94,45 @@ def process_file_cli(file_path: str) -> dict:
         }
 
 
-def generate_simple_conversation(summary: str) -> list:
-    """Generate a simple conversation based on the summary."""
+def generate_conversation_with_personas(summary: str, personas: list) -> list:
+    """Generate a conversation using the provided personas."""
     sentences = summary.split('. ')
     if len(sentences) < 2:
         sentences = [summary]
 
-    conversation = [
-        {
-            'speaker': 'Sarah Chen',
-            'content': f"Welcome to today's news discussion. I'm Sarah Chen, and we're examining an important story."
-        },
-        {
-            'speaker': 'Dr. Michael Rodriguez',
-            'content': f"From a technical perspective, {sentences[0] if sentences else summary}. This represents a significant development."
-        },
-        {
-            'speaker': 'Emma Thompson',
-            'content': f"I've been following this story closely. {sentences[1] if len(sentences) > 1 else summary}. This is what people are experiencing."
-        },
-        {
-            'speaker': 'Sarah Chen',
-            'content': "Thank you both for your insights. This has been a fascinating discussion."
-        }
-    ]
+    conversation = []
+
+    # Opening statement by first persona
+    if len(personas) > 0:
+        conversation.append({
+            'speaker': personas[0]['name'],
+            'content': f"Welcome to today's news discussion. I'm {personas[0]['name']}, and we're examining an important story."
+        })
+
+    # Main discussion points
+    for i, sentence in enumerate(sentences[:min(len(sentences), len(personas))]):
+        persona_index = (i + 1) % len(personas)
+        persona = personas[persona_index]
+
+        if i == 0 and len(personas) > 1:
+            content = f"From my perspective as a {persona.get('type', 'expert')}, {sentence}. This represents a significant development."
+        elif i == 1 and len(personas) > 2:
+            content = f"I've been following this story closely. {sentence}. This is what people are experiencing."
+        else:
+            content = f"That's an important point. {sentence}. Let me add some context to this."
+
+        conversation.append({
+            'speaker': persona['name'],
+            'content': content
+        })
+
+    # Closing statement
+    if len(personas) > 0:
+        last_persona = personas[-1]
+        conversation.append({
+            'speaker': last_persona['name'],
+            'content': "Thank you all for your insights. This has been a fascinating discussion."
+        })
 
     return conversation
 
@@ -167,11 +188,19 @@ def save_transcript(conversation: list, filename: str) -> str:
 
 def main():
     """Main CLI function."""
-    if len(sys.argv) != 2:
-        print("Usage: python process_file.py <file_path>")
+    if len(sys.argv) < 2:
+        print("Usage: python process_file.py <file_path> [personas_json]")
         sys.exit(1)
 
     file_path = sys.argv[1]
+    personas_config = None
+
+    if len(sys.argv) > 2:
+        try:
+            personas_config = json.loads(sys.argv[2])
+        except json.JSONDecodeError:
+            print("Invalid personas JSON")
+            sys.exit(1)
 
     if not os.path.exists(file_path):
         print(json.dumps({'success': False, 'error': f'File not found: {file_path}'}))
@@ -182,7 +211,7 @@ def main():
     Path('outputs/transcripts').mkdir(parents=True, exist_ok=True)
 
     # Process the file
-    result = process_file_cli(file_path)
+    result = process_file_cli(file_path, personas_config)
 
     # Output JSON result
     print(json.dumps(result))

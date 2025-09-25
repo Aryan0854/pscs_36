@@ -1,7 +1,0 @@
-
-            Artificial Intelligence is transforming the way we live and work. 
-            From healthcare to finance, AI applications are becoming increasingly sophisticated. 
-            Machine learning algorithms can now process vast amounts of data to identify patterns 
-            and make predictions with remarkable accuracy. However, with these advances come 
-            important questions about ethics, privacy, and the future of human employment.
-            

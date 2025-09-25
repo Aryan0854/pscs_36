@@ -1,287 +1,319 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
-import { Play, Download, Eye, Loader2, Sparkles, Zap } from "lucide-react"
+import { Play, Download, Upload, Loader2, Mic, Users, FileText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
-interface GenerationJob {
-  jobId: string
-  status: "queued" | "processing" | "completed" | "failed"
-  progress: number
+interface AudioResult {
+  success: boolean
   audioUrl?: string
-  videoUrl?: string
-  thumbnailUrl?: string
+  transcriptUrl?: string
+  dialogue?: Array<{
+    speaker: string
+    content: string
+  }>
+  summary?: string
+  personas?: Array<{
+    name: string
+    type: string
+    expertise: string
+  }>
+  message?: string
+  rawOutput?: string
   error?: string
 }
 
 interface GeminiGeneratorProps {
-  onVideoGenerated?: (videoUrl: string, audioUrl: string) => void
+  onAudioGenerated?: (audioUrl: string, transcriptUrl: string) => void
 }
 
-export default function GeminiGenerator({ onVideoGenerated }: GeminiGeneratorProps) {
-  const [text, setText] = useState("")
-  const [language, setLanguage] = useState("en-IN")
-  const [style, setStyle] = useState("formal")
-  const [duration, setDuration] = useState(30)
+export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorProps) {
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null)
+  const [generationProgress, setGenerationProgress] = useState(0)
+  const [result, setResult] = useState<AudioResult | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Poll job status
-  useEffect(() => {
-    if (!currentJob || currentJob.status === "completed" || currentJob.status === "failed") {
-      return
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setUploadedFile(file)
+      setResult(null)
     }
-
-    const pollStatus = async () => {
-      try {
-        const response = await fetch(`/api/ml/gemini?jobId=${currentJob.jobId}`)
-        const data = await response.json()
-
-        setCurrentJob(data)
-
-        if (data.status === "completed") {
-          setIsGenerating(false)
-          toast({
-            title: "Generation Complete!",
-            description: "Your Gemini AI-powered video and audio have been generated successfully.",
-          })
-
-          if (onVideoGenerated && data.videoUrl && data.audioUrl) {
-            onVideoGenerated(data.videoUrl, data.audioUrl)
-          }
-        } else if (data.status === "failed") {
-          setIsGenerating(false)
-          toast({
-            title: "Generation Failed",
-            description: data.error || "An error occurred during Gemini generation.",
-            variant: "destructive",
-          })
-        }
-      } catch (error) {
-        console.error("Failed to check job status:", error)
-      }
-    }
-
-    const interval = setInterval(pollStatus, 2000)
-    return () => clearInterval(interval)
-  }, [currentJob, onVideoGenerated])
+  }
 
   const handleGenerate = async () => {
-    if (!text.trim()) {
+    if (!uploadedFile) {
       toast({
-        title: "Text Required",
-        description: "Please enter text to generate video and audio with Gemini AI.",
+        title: "File Required",
+        description: "Please select a document file to generate audio discussion.",
         variant: "destructive",
       })
       return
     }
 
     setIsGenerating(true)
+    setGenerationProgress(0)
+    setResult(null)
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setGenerationProgress(prev => Math.min(prev + 10, 90))
+    }, 500)
 
     try {
-      const response = await fetch("/api/ml/gemini", {
+      const formData = new FormData()
+      formData.append('file', uploadedFile)
+
+      const response = await fetch("/api/audio/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          language,
-          style,
-          duration,
-        }),
+        body: formData,
       })
 
-      const data = await response.json()
+      clearInterval(progressInterval)
+      setGenerationProgress(100)
+
+      const data: AudioResult = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Gemini generation failed")
+        throw new Error(data.error || "Audio generation failed")
       }
 
-      setCurrentJob({
-        jobId: data.jobId,
-        status: data.status,
-        progress: 0,
-      })
+      setResult(data)
+
+      if (data.audioUrl && data.transcriptUrl && onAudioGenerated) {
+        onAudioGenerated(data.audioUrl, data.transcriptUrl)
+      }
 
       toast({
-        title: "Gemini AI Generation Started",
-        description: "Your content is being enhanced and generated using Google's Gemini AI.",
+        title: "Audio Generated Successfully!",
+        description: "Your AI-powered news discussion has been created.",
       })
+
     } catch (error) {
-      setIsGenerating(false)
+      clearInterval(progressInterval)
+      setGenerationProgress(0)
       toast({
         title: "Generation Failed",
-        description: error instanceof Error ? error.message : "An error occurred",
+        description: error instanceof Error ? error.message : "An error occurred during audio generation",
         variant: "destructive",
       })
+    } finally {
+      setTimeout(() => {
+        setIsGenerating(false)
+        setGenerationProgress(0)
+      }, 1000)
     }
   }
 
-  const languages = [
-    { value: "en-IN", label: "English (India)" },
-    { value: "hi-IN", label: "Hindi" },
-    { value: "ta-IN", label: "Tamil" },
-    { value: "te-IN", label: "Telugu" },
-    { value: "bn-IN", label: "Bengali" },
-    { value: "gu-IN", label: "Gujarati" },
-    { value: "kn-IN", label: "Kannada" },
-    { value: "ml-IN", label: "Malayalam" },
-    { value: "mr-IN", label: "Marathi" },
-    { value: "or-IN", label: "Odia" },
-    { value: "pa-IN", label: "Punjabi" },
-    { value: "as-IN", label: "Assamese" },
-    { value: "ur-IN", label: "Urdu" },
-    { value: "ne-IN", label: "Nepali" },
-  ]
-
-  const styles = [
-    { value: "formal", label: "Formal/Official" },
-    { value: "news", label: "News Report" },
-    { value: "announcement", label: "Public Announcement" },
-  ]
+  const handleDownload = (url: string, filename: string) => {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-blue-500" />
-            Gemini AI Video Generator
+            <Mic className="h-5 w-5 text-green-500" />
+            AI Audio News Generator
           </CardTitle>
-          <CardDescription>Generate professional videos and audio using Google's advanced Gemini AI</CardDescription>
+          <CardDescription>
+            Transform documents into engaging conversational news discussions with multiple AI personas
+          </CardDescription>
           <div className="flex flex-wrap gap-2 mt-2">
             <Badge variant="secondary" className="flex items-center gap-1">
-              <Zap className="h-3 w-3" />
-              Powered by Gemini AI
+              <Users className="h-3 w-3" />
+              Multi-Persona Dialogue
             </Badge>
-            <Badge variant="secondary">14 Indian Languages</Badge>
-            <Badge variant="secondary">Professional Quality</Badge>
+            <Badge variant="secondary">Custom AI Models</Badge>
+            <Badge variant="secondary">No API Dependencies</Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="input-text">PIB Press Release Text</Label>
-            <Textarea
-              id="input-text"
-              placeholder="Enter the PIB press release text that will be enhanced and converted to video using Gemini AI..."
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="language">Language</Label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  {languages.map((lang) => (
-                    <SelectItem key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="style">Style</Label>
-              <Select value={style} onValueChange={setStyle}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select style" />
-                </SelectTrigger>
-                <SelectContent>
-                  {styles.map((styleOption) => (
-                    <SelectItem key={styleOption.value} value={styleOption.value}>
-                      {styleOption.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Label htmlFor="file-upload">Upload Document</Label>
+            <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+              <input
+                ref={fileInputRef}
+                type="file"
+                id="file-upload"
+                accept=".txt,.pdf,.docx,.doc,.html,.htm,.rtf"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              {uploadedFile ? (
+                <div className="space-y-2">
+                  <FileText className="h-8 w-8 text-green-500 mx-auto" />
+                  <p className="text-sm font-medium">{uploadedFile.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Change File
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
+                  <p className="text-sm font-medium">Drop your document here</p>
+                  <p className="text-xs text-muted-foreground">
+                    Supports PDF, DOCX, TXT, HTML, RTF files (max 16MB)
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Choose File
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="duration">Duration (seconds)</Label>
-            <Input
-              id="duration"
-              type="number"
-              min="10"
-              max="120"
-              value={duration}
-              onChange={(e) => setDuration(Number.parseInt(e.target.value) || 30)}
-            />
-          </div>
-
-          <Button onClick={handleGenerate} disabled={isGenerating || !text.trim()} className="w-full" size="lg">
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating || !uploadedFile}
+            className="w-full"
+            size="lg"
+          >
             {isGenerating ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating with Gemini AI...
+                Generating Audio Discussion...
               </>
             ) : (
               <>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Generate with Gemini AI
+                <Mic className="mr-2 h-4 w-4" />
+                Generate AI Audio Discussion
               </>
             )}
           </Button>
+
+          {isGenerating && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Processing document...</span>
+                <span>{generationProgress}%</span>
+              </div>
+              <Progress value={generationProgress} className="w-full" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {currentJob && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Gemini AI Generation Progress</CardTitle>
-            <CardDescription>Job ID: {currentJob.jobId}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Status: {currentJob.status}</span>
-                <span>{currentJob.progress}%</span>
-              </div>
-              <Progress value={currentJob.progress} className="w-full" />
-            </div>
+      {result && result.success && (
+        <div className="space-y-6">
+          {result.summary && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Document Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm">{result.summary}</p>
+              </CardContent>
+            </Card>
+          )}
 
-            {currentJob.status === "completed" && (
-              <div className="flex gap-2">
-                {currentJob.audioUrl && (
-                  <Button variant="outline" size="sm">
-                    <Play className="mr-2 h-4 w-4" />
-                    Play Audio
+          {result.personas && result.personas.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  AI Personas
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {result.personas.map((persona, index) => (
+                    <div key={index} className="p-3 border rounded-lg">
+                      <h4 className="font-medium">{persona.name}</h4>
+                      <p className="text-sm text-muted-foreground">{persona.type} • {persona.expertise}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {result.dialogue && result.dialogue.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Generated Dialogue</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {result.dialogue.map((turn, index) => (
+                    <div key={index} className="flex gap-3">
+                      <Badge variant="outline" className="shrink-0">
+                        {turn.speaker}
+                      </Badge>
+                      <p className="text-sm flex-1">{turn.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Download Files</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2 flex-wrap">
+                {result.audioUrl && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownload(result.audioUrl!, 'ai_news_discussion.wav')}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Audio
                   </Button>
                 )}
-                {currentJob.videoUrl && (
-                  <>
-                    <Button variant="outline" size="sm">
-                      <Eye className="mr-2 h-4 w-4" />
-                      Preview Video
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </Button>
-                  </>
+                {result.transcriptUrl && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDownload(result.transcriptUrl!, 'transcript.txt')}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Download Transcript
+                  </Button>
                 )}
               </div>
-            )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-            {currentJob.error && (
-              <div className="text-sm text-red-600 bg-red-50 p-3 rounded">Error: {currentJob.error}</div>
+      {result && !result.success && result.error && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-red-600">Generation Failed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-red-600">{result.error}</p>
+            {result.rawOutput && (
+              <details className="mt-2">
+                <summary className="text-sm cursor-pointer">Show raw output</summary>
+                <pre className="text-xs mt-2 p-2 bg-gray-100 rounded overflow-x-auto">
+                  {result.rawOutput}
+                </pre>
+              </details>
             )}
           </CardContent>
         </Card>

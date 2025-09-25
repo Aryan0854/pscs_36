@@ -1,0 +1,45 @@
+{
+  "file_parser": {
+    "status": "PASS",
+    "word_count": 102,
+    "char_count": 790
+  },
+  "text_preprocessor": {
+    "status": "PASS",
+    "sentence_count": 6,
+    "word_count": 64,
+    "entity_count": 0
+  },
+  "summarizer": {
+    "status": "PASS",
+    "original_length": 808,
+    "summary_length": 467,
+    "compression_ratio": 0.5779702970297029
+  },
+  "persona_generator": {
+    "status": "PASS",
+    "persona_count": 3,
+    "exchange_count": 3,
+    "estimated_duration": 90
+  },
+  "dialogue_generator": {
+    "status": "PASS",
+    "dialogue_turns": 5,
+    "speakers": [
+      "Sarah Chen",
+      "Lisa Park"
+    ]
+  },
+  "voice_synthesizer": {
+    "status": "PASS",
+    "tts_available": true,
+    "note": "TTS may require additional setup"
+  },
+  "end_to_end_pipeline": {
+    "status": "PASS",
+    "pipeline_steps": 6,
+    "final_dialogue_turns": 5,
+    "summary_length": 467,
+    "persona_count": 3
+  }
+}

@@ -67,18 +67,22 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
     }, 500)
 
     try {
+      console.log("Starting audio generation with file:", uploadedFile.name)
       const formData = new FormData()
       formData.append('file', uploadedFile)
 
+      console.log("Making API call to /api/audio/generate")
       const response = await fetch("/api/audio/generate", {
         method: "POST",
         body: formData,
       })
 
+      console.log("API response status:", response.status)
       clearInterval(progressInterval)
       setGenerationProgress(100)
 
       const data: AudioResult = await response.json()
+      console.log("API response data:", data)
 
       if (!response.ok) {
         throw new Error(data.error || "Audio generation failed")
@@ -96,6 +100,7 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
       })
 
     } catch (error) {
+      console.error("Audio generation error:", error)
       clearInterval(progressInterval)
       setGenerationProgress(0)
       toast({

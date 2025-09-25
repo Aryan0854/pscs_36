@@ -5,10 +5,13 @@ import fs from 'fs'
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("Audio generation API called")
     const formData = await request.formData()
     const file = formData.get('file') as File
+    console.log("File received:", file?.name, "Size:", file?.size)
 
     if (!file) {
+      console.log("No file provided")
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
@@ -23,26 +26,36 @@ export async function POST(request: NextRequest) {
     fs.writeFileSync(filePath, buffer)
 
     // Run the Python audio generation script
-    const audioScriptPath = path.join(process.cwd(), '5(Audio)', 'app_simple.py')
+    const audioScriptPath = path.join(process.cwd(), '5(Audio)', 'process_file.py')
+    console.log("Python script path:", audioScriptPath)
+    console.log("Working directory:", path.join(process.cwd(), '5(Audio)'))
+    console.log("Command: python", [audioScriptPath, filePath])
 
     return new Promise((resolve) => {
-      const pythonProcess = spawn('python', [audioScriptPath, 'process', filePath], {
+      const pythonProcess = spawn('python', [audioScriptPath, filePath], {
         cwd: path.join(process.cwd(), '5(Audio)'),
         stdio: ['pipe', 'pipe', 'pipe']
       })
+
+      console.log("Python process started")
 
       let output = ''
       let errorOutput = ''
 
       pythonProcess.stdout.on('data', (data) => {
-        output += data.toString()
+        const dataStr = data.toString()
+        console.log("Python stdout:", dataStr)
+        output += dataStr
       })
 
       pythonProcess.stderr.on('data', (data) => {
-        errorOutput += data.toString()
+        const dataStr = data.toString()
+        console.log("Python stderr:", dataStr)
+        errorOutput += dataStr
       })
 
       pythonProcess.on('close', (code) => {
+        console.log("Python process exited with code:", code)
         // Clean up temp file
         try {
           fs.unlinkSync(filePath)

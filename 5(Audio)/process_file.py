@@ -141,42 +141,36 @@ def generate_simple_audio(conversation: list, filename: str) -> str:
     """Generate audio file with text-to-speech."""
     try:
         from gtts import gTTS
-        import pygame
-        from pydub import AudioSegment
-        import io
 
         # Create output directory
         output_path = Path('outputs/audio') / filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Combine all dialogue into a single audio file
-        combined_audio = AudioSegment.empty()
-
+        # Combine all dialogue into a single text
+        full_text = ""
         for i, turn in enumerate(conversation):
-            text = f"{turn['speaker']}: {turn['content']}"
-
-            # Generate TTS audio for this turn
-            tts = gTTS(text=text, lang='en', slow=False)
-
-            # Save to temporary buffer
-            temp_buffer = io.BytesIO()
-            tts.write_to_fp(temp_buffer)
-            temp_buffer.seek(0)
-
-            # Load audio segment
-            audio_segment = AudioSegment.from_mp3(temp_buffer)
-
-            # Add a short pause between speakers
             if i > 0:
-                combined_audio += AudioSegment.silent(duration=500)  # 0.5 second pause
+                full_text += " ... "  # Pause between speakers
+            full_text += f"{turn['speaker']}: {turn['content']}"
 
-            combined_audio += audio_segment
+        # Generate TTS audio
+        tts = gTTS(text=full_text, lang='en', slow=False)
 
-        # Export as WAV
-        combined_audio.export(str(output_path), format='wav')
+        # Save as MP3 first, then convert to WAV if needed
+        mp3_path = str(output_path).replace('.wav', '.mp3')
+        tts.save(mp3_path)
 
-        logger.info(f"Generated TTS audio: {output_path}")
-        return str(output_path)
+        # For now, just return the MP3 path (browser can play MP3)
+        # In production, you might want to convert to WAV
+        final_path = Path(mp3_path)
+        if str(output_path).endswith('.wav'):
+            # Rename to .wav extension for consistency
+            wav_path = output_path
+            final_path.rename(wav_path)
+            final_path = wav_path
+
+        logger.info(f"Generated TTS audio: {final_path}")
+        return str(final_path)
 
     except ImportError as e:
         logger.warning(f"TTS libraries not available: {str(e)}. Falling back to simple audio.")

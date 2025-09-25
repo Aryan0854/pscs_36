@@ -176,23 +176,71 @@ export default function GeminiGenerator({ scriptText: propScriptText, onAudioGen
   const playVoiceSample = async (persona: VoicePersona) => {
     setPlayingSample(persona.id)
     try {
-      // Generate a sample audio for this persona
-      const response = await fetch('/api/audio/sample', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: `Hello, this is ${persona.name} speaking. I am a ${persona.gender} voice with a ${persona.voiceType} tone.`,
-          gender: persona.gender,
-          voiceType: persona.voiceType
-        })
-      })
+      // Use Web Speech API for voice samples (browser-based TTS)
+      if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(
+          `Hello, this is ${persona.name} speaking. I am a ${persona.gender} voice with a ${persona.voiceType} tone.`
+        )
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.audioUrl) {
-          const audio = new Audio(data.audioUrl)
-          audio.onended = () => setPlayingSample(null)
-          audio.play()
+        // Try to find a voice that matches the gender
+        const voices = speechSynthesis.getVoices()
+        const preferredVoice = voices.find(voice =>
+          voice.lang.startsWith('en') &&
+          ((persona.gender === 'female' && voice.name.toLowerCase().includes('female')) ||
+           (persona.gender === 'male' && voice.name.toLowerCase().includes('male')) ||
+           voice.name.toLowerCase().includes(persona.gender))
+        )
+
+        if (preferredVoice) {
+          utterance.voice = preferredVoice
+        }
+
+        // Adjust speech parameters based on voice type
+        switch (persona.voiceType) {
+          case 'calm':
+            utterance.rate = 0.8
+            utterance.pitch = 0.9
+            break
+          case 'energetic':
+            utterance.rate = 1.2
+            utterance.pitch = 1.1
+            break
+          case 'authoritative':
+            utterance.rate = 0.9
+            utterance.pitch = 0.8
+            break
+          case 'engaging':
+            utterance.rate = 1.1
+            utterance.pitch = 1.0
+            break
+          default:
+            utterance.rate = 1.0
+            utterance.pitch = 1.0
+        }
+
+        utterance.onend = () => setPlayingSample(null)
+        utterance.onerror = () => setPlayingSample(null)
+
+        speechSynthesis.speak(utterance)
+      } else {
+        // Fallback to server-side TTS
+        const response = await fetch('/api/audio/sample', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: `Hello, this is ${persona.name} speaking. I am a ${persona.gender} voice with a ${persona.voiceType} tone.`,
+            gender: persona.gender,
+            voiceType: persona.voiceType
+          })
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.audioUrl) {
+            const audio = new Audio(data.audioUrl)
+            audio.onended = () => setPlayingSample(null)
+            audio.play()
+          }
         }
       }
     } catch (error) {

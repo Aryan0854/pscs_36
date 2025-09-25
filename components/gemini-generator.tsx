@@ -272,29 +272,45 @@ export default function GeminiGenerator({ onAudioGenerated }: GeminiGeneratorPro
 
           <Card>
             <CardHeader>
-              <CardTitle>Download Files</CardTitle>
+              <CardTitle>Generated Audio</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-2 flex-wrap">
-                {result.audioUrl && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleDownload(result.audioUrl!, 'ai_news_discussion.wav')}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Audio
-                  </Button>
-                )}
-                {result.transcriptUrl && (
-                  <Button
-                    variant="outline"
-                    onClick={() => handleDownload(result.transcriptUrl!, 'transcript.txt')}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Download Transcript
-                  </Button>
-                )}
-              </div>
+              {result.audioUrl && (
+                <div className="space-y-4">
+                  <div className="bg-muted p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">🎧 Listen to AI News Discussion</h4>
+                    <audio
+                      controls
+                      className="w-full"
+                      preload="metadata"
+                    >
+                      <source src={result.audioUrl} type="audio/wav" />
+                      Your browser does not support the audio element.
+                    </audio>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Multi-persona AI discussion generated from your document
+                    </p>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownload(result.audioUrl!, 'ai_news_discussion.wav')}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Audio
+                    </Button>
+                    {result.transcriptUrl && (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleDownload(result.transcriptUrl!, 'transcript.txt')}
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        Download Transcript
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -1,8 +1,34 @@
 import { NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { createServerClient, isSupabaseConfigured } from "@/lib/supabase/server"
 
 export async function GET(request: Request) {
   console.time("dashboard-api-total")
+  
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured) {
+    console.warn("Supabase not configured - returning empty analytics data")
+    return NextResponse.json({
+      projectStats: {
+        totalProjects: 0,
+        activeProjects: 0,
+        completedProjects: 0,
+        totalLanguages: 0,
+        totalDuration: "0m",
+        processingTime: "0m",
+      },
+      languageUsage: [],
+      projectTrends: [],
+      processingTimeData: [],
+      systemMetrics: {
+        cpuUsage: 0,
+        memoryUsage: 0,
+        storageUsage: 0,
+        activeJobs: 0,
+      },
+      recentActivity: [],
+    })
+  }
+  
   try {
     const supabase = await createServerClient(request)
 

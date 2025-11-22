@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { createServerClient, isSupabaseConfigured } from "@/lib/supabase/server"
 
 interface AnalyticsData {
   projectStats: {
@@ -33,6 +33,36 @@ interface AnalyticsData {
 }
 
 export async function GET(request: NextRequest) {
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured) {
+    console.warn("Supabase not configured - returning empty analytics data")
+    const emptyAnalyticsData: AnalyticsData = {
+      projectStats: {
+        totalProjects: 0,
+        activeProjects: 0,
+        completedProjects: 0,
+        totalLanguages: 0,
+        totalDuration: "0m",
+        processingTime: "0m",
+      },
+      systemMetrics: {
+        cpuUsage: 0,
+        memoryUsage: 0,
+        storageUsage: 0,
+        activeJobs: 0,
+      },
+      languageUsage: [],
+      projectTrends: [],
+      processingTimes: [],
+    }
+    
+    return NextResponse.json({
+      success: true,
+      data: emptyAnalyticsData,
+      timeRange: "7d",
+    })
+  }
+  
   try {
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get("timeRange") || "7d"

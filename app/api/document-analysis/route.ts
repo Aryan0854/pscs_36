@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { createServerClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import fs from "fs"
 import path from "path"
 import os from "os"
@@ -130,7 +130,12 @@ function extractSlideKeywords(text: string): string[] {
 export async function POST(request: NextRequest) {
   try {
     console.log("[v0] Document Analysis API: Starting document analysis request processing")
-    const supabase = await createServerClient(request)
+    
+    // Create Supabase client if configured
+    let supabase = null;
+    if (isSupabaseConfigured) {
+      supabase = await createServerClient(request);
+    }
 
     const formData = await request.formData()
     const file = formData.get("file") as File
@@ -167,49 +172,74 @@ export async function POST(request: NextRequest) {
       try {
         console.log("[v0] Document Analysis API: Starting PDF extraction for file:", file.name, "size:", file.size)
 
-        // Create temp file since pdf-text-extract expects a file path
-        const tempDir = path.join(os.tmpdir(), `pdf-extract-${Date.now()}`)
-        fs.mkdirSync(tempDir, { recursive: true })
-        const tempFilePath = path.join(tempDir, file.name)
-        fs.writeFileSync(tempFilePath, buffer)
-
-        console.log("[v0] Document Analysis API: Temp file created at:", tempFilePath)
-
-        // Try multiple PDF extraction methods
+        // Try multiple PDF extraction methods with better error handling for deployment
         let extractionSuccessful = false;
         
-        // Method 1: Try pdf-extract with text type
+        // Method 1: Try pdf-parse first (more reliable in serverless environments)
         try {
-          // @ts-ignore
-          const pdfExtract = (await import("pdf-extract")).default
-          const extracted = await new Promise((resolve, reject) => {
-            pdfExtract(tempFilePath, { type: "text" }, (err: any, data: any) => {
-              if (err) {
-                console.error("[v0] Document Analysis API: PDF extraction failed with pdf-extract:", err)
-                reject(err)
-              } else {
-                resolve(data)
-              }
-            })
-          })
-          extractedText = (extracted as any).text.trim()
-          extractionSuccessful = true
-          console.log("[v0] Document Analysis API: PDF text extraction successful with pdf-extract, length:", extractedText.length)
-        } catch (pdfError) {
-          console.error("[v0] Document Analysis API: PDF extraction failed with pdf-extract:", pdfError)
-        }
-
-        // Method 2: Try pdf-parse as fallback if pdf-extract failed
-        if (!extractionSuccessful) {
-          try {
-            const { PDFParse } = await import("pdf-parse")
-            const pdfParser = new PDFParse({ data: buffer })
-            const textResult = await pdfParser.getText()
-            extractedText = textResult.text.trim()
+          // Use dynamic import with default export pattern
+          const pdfModule: any = await import("pdf-parse")
+          // Try different ways to access the PDF parsing function
+          const pdfParse = pdfModule.PDFParse
+          
+          // If it's a function, call it directly
+          if (typeof pdfParse === 'function') {
+            const data = await pdfParse(buffer)
+            extractedText = data.text.trim()
             extractionSuccessful = true
             console.log("[v0] Document Analysis API: PDF text extraction successful with pdf-parse, length:", extractedText.length)
-          } catch (parseError) {
-            console.error("[v0] Document Analysis API: PDF parsing failed with pdf-parse:", parseError)
+          } else {
+            // If it's an object with PDFParse property
+            throw new Error("PDF parsing function not found")
+          }
+        } catch (parseError) {
+          console.error("[v0] Document Analysis API: PDF parsing failed with pdf-parse:", parseError)
+        }
+
+        // Method 2: Try pdf-extract as fallback if pdf-parse failed
+        if (!extractionSuccessful) {
+          try {
+            // Only create temp file if pdf-extract is available
+            // Create temp file since pdf-text-extract expects a file path
+            const tempDir = path.join(os.tmpdir(), `pdf-extract-${Date.now()}`)
+            fs.mkdirSync(tempDir, { recursive: true })
+            const tempFilePath = path.join(tempDir, file.name)
+            fs.writeFileSync(tempFilePath, buffer)
+
+            console.log("[v0] Document Analysis API: Temp file created at:", tempFilePath)
+            
+            // @ts-ignore
+            const pdfExtract = (await import("pdf-extract")).default
+            const extracted = await new Promise((resolve, reject) => {
+              pdfExtract(tempFilePath, { type: "text" }, (err: any, data: any) => {
+                // Cleanup temp file immediately
+                try {
+                  fs.rmSync(tempDir, { recursive: true, force: true })
+                } catch (cleanupError) {
+                  console.error("[v0] Document Analysis API: Failed to cleanup temp file:", cleanupError)
+                }
+                
+                if (err) {
+                  console.error("[v0] Document Analysis API: PDF extraction failed with pdf-extract:", err)
+                  reject(err)
+                } else {
+                  resolve(data)
+                }
+              })
+            })
+            extractedText = (extracted as any).text.trim()
+            extractionSuccessful = true
+            console.log("[v0] Document Analysis API: PDF text extraction successful with pdf-extract, length:", extractedText.length)
+          } catch (pdfError) {
+            console.error("[v0] Document Analysis API: PDF extraction failed with pdf-extract:", pdfError)
+            
+            // Cleanup temp file if it exists
+            try {
+              const tempDir = path.join(os.tmpdir(), `pdf-extract-${Date.now()}`)
+              fs.rmSync(tempDir, { recursive: true, force: true })
+            } catch (cleanupError) {
+              console.error("[v0] Document Analysis API: Failed to cleanup temp file:", cleanupError)
+            }
           }
         }
 
@@ -223,9 +253,6 @@ export async function POST(request: NextRequest) {
         }
 
         console.log("[v0] Document Analysis API: Final extracted text preview:", extractedText.substring(0, 500))
-
-        // Cleanup temp file
-        fs.rmSync(tempDir, { recursive: true, force: true })
 
         if (extractedText.length === 0) {
           console.warn("[v0] Document Analysis API: PDF extraction returned empty text - possible issue with PDF content or library")

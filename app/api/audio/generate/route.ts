@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { spawn } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -101,6 +101,17 @@ export async function POST(request: NextRequest) {
 
     console.log("Command: python", args)
 
+    // Check if Python is available
+    try {
+      spawnSync('python', ['--version'], { stdio: 'ignore' });
+    } catch (pythonError) {
+      console.error("Python not found or not accessible:", pythonError);
+      return NextResponse.json({
+        error: 'Python runtime not available',
+        details: 'Audio generation requires Python to be installed and accessible in the system PATH'
+      }, { status: 500 });
+    }
+
     return new Promise((resolve) => {
       const pythonProcess = spawn('python', args, {
         cwd: path.join(process.cwd(), '5(Audio)'),
@@ -137,8 +148,8 @@ export async function POST(request: NextRequest) {
           try {
             const result = JSON.parse(output)
             
-            // Save audio URL to database if project ID is provided
-            if (projectId) {
+            // Save audio URL to database if project ID is provided and Supabase is configured
+            if (projectId && isSupabaseConfigured) {
               try {
                 const supabase = await createClient()
                 const audioUrl = result.audio_file ? `/api/audio/download/${result.audio_file}` : null

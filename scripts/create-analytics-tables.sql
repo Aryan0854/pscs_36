@@ -1,19 +1,5 @@
 -- Create analytics tables for PIB Multilingual Video Platform
 
--- Projects table
-CREATE TABLE IF NOT EXISTS projects (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  status VARCHAR(50) DEFAULT 'draft',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  user_id UUID REFERENCES auth.users(id),
-  language_count INTEGER DEFAULT 0,
-  scene_count INTEGER DEFAULT 0,
-  duration_minutes INTEGER DEFAULT 0
-);
-
 -- Project exports table
 CREATE TABLE IF NOT EXISTS project_exports (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -56,13 +42,19 @@ CREATE TABLE IF NOT EXISTS activity_log (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insert sample data for testing
-INSERT INTO projects (title, description, status, language_count, scene_count, duration_minutes) VALUES
-('Healthcare Policy Announcement', 'New healthcare initiatives for rural areas', 'completed', 6, 4, 8),
-('Economic Survey Highlights', 'Key findings from annual economic survey', 'active', 8, 6, 12),
-('Digital India Initiative', 'Progress update on digital transformation', 'completed', 5, 3, 6),
-('Education Reform Update', 'Latest changes in education policy', 'active', 7, 5, 10),
-('Infrastructure Development', 'Major infrastructure projects update', 'completed', 4, 3, 7);
+-- Sample data insertion has been removed
+-- The dashboard will now only show real data from actual projects and exports
+-- If you need sample data for testing, you can uncomment the section below
+-- or use the remove-sample-data.sql script to clean up after testing
+
+/*
+-- Insert sample data for testing (commented out - uncomment only if needed for testing)
+INSERT INTO projects (title, description, status, file_name, file_type, file_size) VALUES
+('Healthcare Policy Announcement', 'New healthcare initiatives for rural areas', 'completed', 'healthcare_policy.pdf', 'application/pdf', 1024000),
+('Economic Survey Highlights', 'Key findings from annual economic survey', 'active', 'economic_survey.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 2048000),
+('Digital India Initiative', 'Progress update on digital transformation', 'completed', 'digital_india.txt', 'text/plain', 512000),
+('Education Reform Update', 'Latest changes in education policy', 'active', 'education_reform.pdf', 'application/pdf', 1536000),
+('Infrastructure Development', 'Major infrastructure projects update', 'completed', 'infrastructure.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 768000);
 
 -- Insert sample exports
 INSERT INTO project_exports (project_id, language, processing_time_minutes, file_size_mb, status, completed_at) 
@@ -112,3 +104,4 @@ INSERT INTO activity_log (activity_type, title, description, created_at) VALUES
 ('project_created', 'Economic Survey Highlights', 'New project created with 8 scenes', NOW() - interval '15 minutes'),
 ('translation_finished', 'Digital India Initiative', 'Translation completed for Tamil', NOW() - interval '1 hour'),
 ('scene_updated', 'Policy Announcement Scene 3', 'Scene properties updated', NOW() - interval '2 hours');
+*/

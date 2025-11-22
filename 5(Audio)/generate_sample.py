@@ -6,12 +6,10 @@ Creates short audio clips demonstrating different voice characteristics.
 
 import sys
 import os
-import numpy as np
-import soundfile as sf
 from pathlib import Path
 
 def generate_voice_sample(text_file: str, gender: str, voice_type: str, output_file: str):
-    """Generate a voice sample based on gender and voice type using TTS."""
+    """Generate a voice sample based on gender and voice type using enhanced gTTS."""
 
     try:
         # Read the text
@@ -22,74 +20,50 @@ def generate_voice_sample(text_file: str, gender: str, voice_type: str, output_f
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Use gTTS for voice samples
-        try:
-            from gtts import gTTS
-            from pydub import AudioSegment
-            import io
+        # Enhanced voice selection for natural speech
+        voice_configs = {
+            'calm_female': {'tld': 'co.uk', 'slow': True, 'lang': 'en'},      # British - sophisticated
+            'calm_male': {'tld': 'co.in', 'slow': True, 'lang': 'en'},        # Indian - gentle
+            'energetic_female': {'tld': 'com.au', 'slow': False, 'lang': 'en'}, # Australian - lively
+            'energetic_male': {'tld': 'ie', 'slow': False, 'lang': 'en'},     # Irish - enthusiastic
+            'authoritative_female': {'tld': 'ca', 'slow': True, 'lang': 'en'}, # Canadian - commanding
+            'authoritative_male': {'tld': 'co.uk', 'slow': True, 'lang': 'en'}, # British - formal
+            'engaging_female': {'tld': 'co.nz', 'slow': False, 'lang': 'en'},  # NZ - warm
+            'engaging_male': {'tld': 'com', 'slow': False, 'lang': 'en'},     # American - engaging
+            'professional_female': {'tld': 'us', 'slow': False, 'lang': 'en'}, # American - clear
+            'professional_male': {'tld': 'ca', 'slow': False, 'lang': 'en'},  # Canadian - professional
+            'warm_female': {'tld': 'co.in', 'slow': False, 'lang': 'en'},     # Indian - caring
+            'warm_male': {'tld': 'co.nz', 'slow': False, 'lang': 'en'},      # NZ - friendly
+            'confident_female': {'tld': 'com', 'slow': False, 'lang': 'en'}, # American - strong
+            'confident_male': {'tld': 'au', 'slow': False, 'lang': 'en'},    # Australian - bold
+            'friendly_female': {'tld': 'co.nz', 'slow': False, 'lang': 'en'}, # NZ - cheerful
+            'friendly_male': {'tld': 'ie', 'slow': False, 'lang': 'en'},     # Irish - welcoming
+            'formal_female': {'tld': 'co.uk', 'slow': True, 'lang': 'en'},   # British - proper
+            'formal_male': {'tld': 'ca', 'slow': True, 'lang': 'en'},        # Canadian - distinguished
+            'casual_female': {'tld': 'ie', 'slow': False, 'lang': 'en'},    # Irish - relaxed
+            'casual_male': {'tld': 'au', 'slow': False, 'lang': 'en'},      # Australian - laid-back
+        }
 
-            # Adjust TTS parameters based on voice type
-            slow = voice_type in ['calm', 'formal', 'authoritative']
+        voice_key = f"{voice_type}_{gender}"
+        config = voice_configs.get(voice_key, {'tld': 'com', 'slow': False, 'lang': 'en'})
 
-            # Generate TTS audio
-            tts = gTTS(text=text, lang='en', slow=slow, tld='com')
+        # Generate TTS with enhanced parameters
+        from gtts import gTTS
 
-            # Save to temporary buffer
-            temp_buffer = io.BytesIO()
-            tts.write_to_fp(temp_buffer)
-            temp_buffer.seek(0)
+        tts = gTTS(
+            text=text,
+            lang=config['lang'],
+            slow=config['slow'],
+            tld=config['tld']
+        )
 
-            # Load and process audio
-            audio_segment = AudioSegment.from_mp3(temp_buffer)
+        tts.save(str(output_path))
 
-            # Adjust audio based on voice characteristics
-            if voice_type == 'energetic':
-                # Speed up slightly
-                audio_segment = audio_segment.speedup(playback_speed=1.1)
-            elif voice_type == 'calm':
-                # Slow down slightly
-                audio_segment = audio_segment.speedup(playback_speed=0.9)
+        print(f"Generated enhanced TTS voice sample: {output_file}")
+        print(f"Voice: {voice_key} -> {config}")
+        print(f"Text: {text[:50]}...")
 
-            # Export as WAV
-            audio_segment.export(str(output_path), format='wav')
-
-            print(f"Generated TTS voice sample: {output_file}")
-            print(f"Gender: {gender}, Voice Type: {voice_type}")
-            print(f"Text: {text[:50]}...")
-
-            return True
-
-        except ImportError:
-            print("TTS libraries not available, falling back to simple audio generation")
-            # Fallback to simple audio generation
-            import numpy as np
-            import soundfile as sf
-
-            # Basic voice characteristics
-            if gender.lower() == 'male':
-                base_freq = 85
-                pitch_variation = 0.15
-            else:
-                base_freq = 165
-                pitch_variation = 0.17
-
-            sample_rate = 22050
-            duration = min(len(text) * 0.1, 3.0)  # Max 3 seconds
-            samples = int(duration * sample_rate)
-
-            # Create a simple modulated tone
-            t = np.linspace(0, duration, samples, False)
-            frequency = base_freq * (1 + pitch_variation * np.sin(2 * np.pi * 2 * t))
-
-            audio_signal = 0.3 * np.sin(2 * np.pi * frequency * t)
-            noise = 0.05 * np.random.normal(0, 1, samples)
-            audio_signal += noise
-            audio_signal = audio_signal / np.max(np.abs(audio_signal))
-
-            sf.write(str(output_path), audio_signal, sample_rate)
-
-            print(f"Generated fallback voice sample: {output_file}")
-            return True
+        return True
 
     except Exception as e:
         print(f"Error generating voice sample: {str(e)}")

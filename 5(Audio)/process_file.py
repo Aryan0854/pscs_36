@@ -9,6 +9,7 @@ import sys
 import json
 import logging
 from pathlib import Path
+from typing import List, Dict, Optional
 
 # Add src to path
 sys.path.append('src')
@@ -22,7 +23,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def process_file_cli(file_path: str, personas_config: list = None) -> dict:
+def process_file_cli(file_path: str, personas_config: list = None, language: str = 'en') -> dict:
     """Process a single file and return results as dict."""
     try:
         # Initialize components
@@ -61,7 +62,7 @@ def process_file_cli(file_path: str, personas_config: list = None) -> dict:
         import uuid
         session_id = str(uuid.uuid4())
         audio_filename = f"{session_id}_news_discussion.wav"
-        audio_path = generate_simple_audio(conversation, audio_filename, personas)
+        audio_path = generate_simple_audio(conversation, audio_filename, personas, language)
 
         # Step 6: Save transcript
         transcript_filename = f"{session_id}_transcript.txt"
@@ -137,10 +138,31 @@ def generate_conversation_with_personas(summary: str, personas: list) -> list:
     return conversation
 
 
-def generate_simple_audio(conversation: list, filename: str, personas: list = None) -> str:
+def generate_simple_audio(conversation: list, filename: str, personas: list = None, language: str = 'en') -> str:
     """Generate audio file with text-to-speech."""
     try:
         from gtts import gTTS
+
+        # Language mapping for gTTS
+        language_map = {
+            'en': 'en',      # English
+            'hi': 'hi',      # Hindi
+            'bn': 'bn',      # Bengali
+            'ta': 'ta',      # Tamil
+            'te': 'te',      # Telugu
+            'gu': 'gu',      # Gujarati
+            'mr': 'mr',      # Marathi
+            'kn': 'kn',      # Kannada
+            'ml': 'ml',      # Malayalam
+            'or': 'or',      # Odia
+            'pa': 'pa',      # Punjabi
+            'as': 'as',      # Assamese
+            'ur': 'ur',      # Urdu
+            'ne': 'ne',      # Nepali
+        }
+        
+        # Get the appropriate language code for gTTS
+        tts_language = language_map.get(language, 'en')
 
         # Create output directory
         output_path = Path('outputs/audio') / filename
@@ -157,50 +179,50 @@ def generate_simple_audio(conversation: list, filename: str, personas: list = No
             persona = next((p for p in personas if p['name'] == persona_name), None)
 
             # Customize TTS based on persona voice type with distinct voices
-            lang = 'en'
+            lang = tts_language
             slow = False
             tld = 'com'  # Default Google domain
 
             if persona and 'voiceType' in persona:
                 voice_type = persona['voiceType']
                 if voice_type == 'calm':
-                    lang = 'en'
+                    lang = tts_language
                     slow = True
                     tld = 'co.uk'  # British English - sophisticated, measured
                 elif voice_type == 'energetic':
-                    lang = 'en'
+                    lang = tts_language
                     slow = False
                     tld = 'com.au'  # Australian English - lively, enthusiastic
                 elif voice_type == 'authoritative':
-                    lang = 'en'
+                    lang = tts_language
                     slow = True
                     tld = 'co.uk'  # British English - commanding, formal
                 elif voice_type == 'engaging':
-                    lang = 'en'
+                    lang = tts_language
                     slow = False
                     tld = 'com'  # American English - warm, engaging
                 elif voice_type == 'professional':
-                    lang = 'en'
+                    lang = tts_language
                     slow = False
                     tld = 'us'  # American English - clear, professional
                 elif voice_type == 'warm':
-                    lang = 'en'
+                    lang = tts_language
                     slow = False
                     tld = 'co.in'  # Indian English - gentle, warm
                 elif voice_type == 'confident':
-                    lang = 'en'
+                    lang = tts_language
                     slow = False
                     tld = 'com'  # American English - strong, confident
                 elif voice_type == 'friendly':
-                    lang = 'en'
+                    lang = tts_language
                     slow = False
                     tld = 'co.nz'  # New Zealand English - cheerful, friendly
                 elif voice_type == 'formal':
-                    lang = 'en'
+                    lang = tts_language
                     slow = True
                     tld = 'ca'  # Canadian English - proper, formal
                 elif voice_type == 'casual':
-                    lang = 'en'
+                    lang = tts_language
                     slow = False
                     tld = 'ie'  # Irish English - relaxed, casual
 
@@ -226,7 +248,7 @@ def generate_simple_audio(conversation: list, filename: str, personas: list = No
         else:
             # Fallback: generate basic TTS for the whole conversation
             full_text = " ... ".join([f"{turn['speaker']}: {turn['content']}" for turn in conversation])
-            tts = gTTS(text=full_text, lang='en', slow=False)
+            tts = gTTS(text=full_text, lang=tts_language, slow=False)
             tts.save(str(output_path))
             final_path = output_path
 
@@ -308,11 +330,12 @@ def save_transcript(conversation: list, filename: str) -> str:
 def main():
     """Main CLI function."""
     if len(sys.argv) < 2:
-        print("Usage: python process_file.py <file_path> [personas_json]")
+        print("Usage: python process_file.py <file_path> [personas_json] [language]")
         sys.exit(1)
 
     file_path = sys.argv[1]
     personas_config = None
+    language = 'en'  # Default to English
 
     if len(sys.argv) > 2:
         try:
@@ -320,6 +343,10 @@ def main():
         except json.JSONDecodeError:
             print("Invalid personas JSON")
             sys.exit(1)
+
+    if len(sys.argv) > 3:
+        language = sys.argv[3]
+        logger.info(f"Language set to: {language}")
 
     if not os.path.exists(file_path):
         print(json.dumps({'success': False, 'error': f'File not found: {file_path}'}))
@@ -330,7 +357,7 @@ def main():
     Path('outputs/transcripts').mkdir(parents=True, exist_ok=True)
 
     # Process the file
-    result = process_file_cli(file_path, personas_config)
+    result = process_file_cli(file_path, personas_config, language)
 
     # Output JSON result
     print(json.dumps(result))

@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
-const GEMINI_API_KEY = "AIzaSyAao1GeaTR7MQ6uzZjxa1Ct8btk-n04zK0"
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyAao1GeaTR7MQ6uzZjxa1Ct8btk-n04zK0"
 
 interface GenerationRequest {
   text: string
@@ -13,7 +13,7 @@ interface GenerationRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -120,7 +120,7 @@ async function processGeminiGeneration(
   duration: number,
   model: any,
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     // Update status to processing

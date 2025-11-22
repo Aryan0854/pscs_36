@@ -12,6 +12,7 @@ interface UserSettings {
   exportFormat: "mp4" | "mov" | "avi"
   parallelProcessing: boolean
   autoDownload: boolean
+  audioLanguage?: string // Add audio language setting
 }
 
 export async function GET(request: NextRequest) {
@@ -39,14 +40,15 @@ export async function GET(request: NextRequest) {
       const defaultSettings = {
         userId: user.email,
         theme: "dark",
-        defaultLanguage: "english",
-        enabledLanguages: ["english", "hindi"],
+        defaultLanguage: "en",
+        enabledLanguages: ["en", "hi"],
         notifications: true,
         autoSave: true,
         exportQuality: "high",
         exportFormat: "mp4",
         parallelProcessing: true,
         autoDownload: true,
+        audioLanguage: "same-as-ui", // Add default audio language setting
       }
 
       settings = profile?.preferences ? { ...defaultSettings, ...profile.preferences } : defaultSettings
@@ -55,8 +57,8 @@ export async function GET(request: NextRequest) {
       settings = {
         userId: null,
         theme: "dark",
-        defaultLanguage: "english",
-        enabledLanguages: ["english", "hindi"],
+        defaultLanguage: "en",
+        enabledLanguages: ["en", "hi"],
         notifications: true,
         autoSave: true,
         exportQuality: "high",

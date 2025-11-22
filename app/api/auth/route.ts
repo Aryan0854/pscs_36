@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       const token = `jwt_${user.id}_${Date.now()}`
 
       // Set secure cookie
-      const cookieStore = cookies()
+      const cookieStore = await cookies()
       cookieStore.set("auth_token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     const token = `jwt_${newUser.id}_${Date.now()}`
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     cookieStore.set("auth_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     cookieStore.delete("auth_token")
 
     return NextResponse.json({

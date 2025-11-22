@@ -1,0 +1,637 @@
+# PIB Multilingual Video Platform - Technical Documentation
+
+## 1. System Overview
+
+The PIB Multilingual Video Platform is a comprehensive solution designed to transform government press releases into engaging multilingual video content using AI-powered automation. The platform leverages local AI models to ensure privacy, cost predictability, and offline capability while providing a rich set of features for content creation.
+
+### 1.1 Architecture
+
+The platform follows a modern web application architecture with the following components:
+
+- **Frontend**: Next.js 14 with TypeScript, React, and Tailwind CSS
+- **Backend**: Next.js API Routes for server-side processing
+- **AI Processing**: Local AI models with no external API dependencies
+- **Database**: Supabase/PostgreSQL (optional)
+- **Authentication**: Supabase Auth (optional)
+- **File Storage**: Local file system
+- **UI Components**: shadcn/ui component library
+
+### 1.2 Core Components
+
+1. **Document Processing Pipeline**: Converts PDF, DOCX, and TXT files into structured text
+2. **AI Audio Generation**: Creates multi-persona dialogue with distinct voices
+3. **Timeline Editor**: Provides precise control over audio tracks and timing
+4. **Video Generation Engine**: Transforms scripts and audio into professional videos
+5. **Export Pipeline**: Processes and exports videos in various formats and languages
+6. **Scene Management**: Builds engaging scenes with templates and customization
+
+### 1.3 Workflow
+
+1. **Document Upload**: Users upload government press releases in PDF, DOC, DOCX, or TXT format
+2. **Text Extraction**: System extracts text content using pdf-extract and mammoth libraries
+3. **AI Script Generation**: AI models analyze content and generate structured scripts
+4. **Voice Generation**: Multi-persona dialogue is created with distinct regional voices
+5. **Timeline Editing**: Users arrange and fine-tune audio tracks with precision controls
+6. **Video Generation**: Scripts and audio are combined into professional videos
+7. **Multilingual Export**: Videos are processed and exported in multiple languages
+8. **Distribution**: Final videos are available for download and sharing
+
+## 2. Video and Text Output Generation
+
+### 2.1 Text Processing Pipeline
+
+The text processing pipeline handles document ingestion and preparation:
+
+1. **File Upload Handling**: 
+   - Supports PDF, DOC, DOCX, and TXT formats
+   - Implemented in [app/api/upload/route.ts](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/app/api/upload/route.ts)
+   - Uses pdf-extract library for PDF processing with OCR capabilities
+   - Uses mammoth library for DOCX text extraction
+
+2. **Content Extraction**:
+   - PDF processing with pdf-extract library
+   - DOCX processing with mammoth library
+   - Fallback to structured placeholder content when extraction fails
+   - Text normalization and cleaning
+
+3. **Text Analysis**:
+   - Content summarization for time-based discussions
+   - Key point identification
+   - Structure analysis for optimal dialogue generation
+
+### 2.2 Audio Generation Pipeline
+
+The audio generation pipeline creates natural-sounding multi-persona dialogue:
+
+1. **Persona Configuration**:
+   - Customizable host personas with distinct voices
+   - Gender and voice type selection
+   - Regional accent simulation
+
+2. **Dialogue Generation**:
+   - AI-powered conversation creation based on input text
+   - Time-based content allocation (2.5 words/second)
+   - Optimal turn distribution among personas
+   - Natural pause insertion (300-500ms between speakers)
+
+3. **Voice Synthesis**:
+   - Enhanced gTTS with regional accent simulation
+   - Crossfade transitions (200ms)
+   - Professional audio processing (noise reduction, compression, equalization)
+   - Voice cloning capabilities with regional accents
+
+4. **Audio Processing**:
+   - Spectral subtraction noise reduction
+   - Dynamic range compression
+   - Frequency-specific equalization
+   - Normalization to -16 dBFS target level
+
+### 2.3 Video Generation Pipeline
+
+The video generation pipeline transforms scripts and audio into professional videos:
+
+1. **Scene Creation**:
+   - Template-based scene generation
+   - Customizable scene settings (background, text color, animations)
+   - Asset management (images, videos, audio, text)
+
+2. **Visual Synchronization**:
+   - Automatic audio-visual synchronization
+   - Caption generation from dialogue
+   - Scene transition effects
+
+3. **Rendering Engine**:
+   - FFmpeg-based video processing
+   - Multiple resolution support (720p, 1080p, 4K)
+   - Format conversion (MP4, WebM, MOV)
+
+## 3. Machine Learning and AI Models
+
+### 3.1 Natural Language Processing
+
+The platform uses several NLP techniques for content processing:
+
+1. **Text Summarization**:
+   - Time-based summarization algorithm
+   - Key sentence extraction based on position and relevance
+   - Word count optimization for specified discussion durations
+
+2. **Dialogue Generation**:
+   - Structured conversation creation with proper speaking divisions
+   - Persona-based dialogue with authoritative, engaging, and professional speaking styles
+   - Context-aware response generation
+
+3. **Language Processing**:
+   - 14 Indian languages coverage
+   - Cultural context preservation
+   - Regional accent accuracy
+   - Cross-lingual content adaptation
+
+### 3.2 Audio Processing Models
+
+The platform implements several audio processing techniques:
+
+1. **Text-to-Speech (TTS)**:
+   - Enhanced gTTS with regional accent simulation
+   - Voice type customization (professional, engaging, warm, confident)
+   - Gender-specific voice generation
+   - Natural pause insertion
+
+2. **Audio Quality Enhancement**:
+   - Spectral subtraction noise reduction
+   - Dynamic range compression
+   - Frequency-specific equalization
+   - Normalization to -16 dBFS target level
+
+3. **Audio Segmentation**:
+   - Crossfade transitions (200ms)
+   - Segment combination with pydub library
+   - Duration calculation and optimization
+
+### 3.3 Video Processing Models
+
+The platform uses computer vision techniques for video generation:
+
+1. **Scene Rendering**:
+   - Template-based professional video creation
+   - Animated background generation
+   - Caption overlay with timed display
+
+2. **Visual Effects**:
+   - Transition effects (slide, fade, cut, dissolve)
+   - Animation effects (fade-in, slide-up, zoom-in)
+   - Color and font customization
+
+3. **Video Encoding**:
+   - FFmpeg-based processing pipeline
+   - Multiple codec support (H.264, VP9, ProRes)
+   - Resolution scaling and optimization
+
+## 4. Dataset Information
+
+### 4.1 Training Data Sources
+
+The platform utilizes the following data sources for model training and content generation:
+
+1. **Government Press Releases**:
+   - PIB (Press Information Bureau) press releases
+   - Official government communications
+   - Policy documents and announcements
+
+2. **Voice Training Data**:
+   - Regional accent samples for voice cloning
+   - Professional voice recordings for TTS models
+   - Multilingual speech datasets
+
+3. **Video Template Data**:
+   - Professional news broadcast templates
+   - Government communication video examples
+   - Educational and documentary style references
+
+### 4.2 Data Preprocessing
+
+The platform implements several data preprocessing techniques:
+
+1. **Text Cleaning**:
+   - Removal of formatting artifacts
+   - Standardization of terminology
+   - Correction of OCR errors
+
+2. **Language Processing**:
+   - Tokenization for Indian languages
+   - Stop word removal
+   - Named entity recognition
+
+3. **Audio Processing**:
+   - Noise reduction preprocessing
+   - Sample rate normalization
+   - Audio segmentation
+
+### 4.3 Data Augmentation
+
+To enhance model performance, the platform uses data augmentation techniques:
+
+1. **Text Augmentation**:
+   - Paraphrasing for content variation
+   - Synonym replacement
+   - Sentence restructuring
+
+2. **Audio Augmentation**:
+   - Pitch shifting for voice variety
+   - Speed variation for natural speech
+   - Background noise addition for robustness
+
+3. **Video Augmentation**:
+   - Color variation for scene diversity
+   - Transition style variation
+   - Layout modifications
+
+## 5. File Structure and Component Breakdown
+
+### 5.1 Project Directory Structure
+
+```
+app/                      # Next.js 14 App Router pages and API routes
+├── api/                  # Backend API endpoints
+│   ├── analytics/        # Analytics dashboard endpoints
+│   ├── audio/            # Audio processing endpoints
+│   ├── auth/             # Authentication endpoints
+│   ├── export/           # Export pipeline endpoints
+│   ├── ml/gemini/        # Gemini AI integration
+│   ├── projects/         # Project management endpoints
+│   ├── scenes/           # Scene management endpoints
+│   ├── settings/         # User settings endpoints
+│   ├── timeline/         # Timeline editor endpoints
+│   ├── upload/           # File upload endpoints
+│   ├── user-profile/     # User profile endpoints
+│   └── video/            # Video generation endpoints
+├── auth/callback/        # Authentication callback handler
+├── globals.css           # Global CSS styles
+├── layout.tsx            # Root layout component
+└── page.tsx              # Main application page
+
+components/               # Reusable UI components
+├── ui/                   # shadcn/ui components
+├── export-pipeline.tsx   # Export pipeline interface
+├── gemini-generator.tsx  # AI audio generation interface
+├── login-modal.tsx       # Authentication modal
+├── project-dashboard.tsx # Project dashboard
+├── scene-manager.tsx     # Scene management interface
+├── script-editor.tsx     # Script editing interface
+├── settings-modal.tsx    # Settings configuration
+├── theme-provider.tsx    # Theme management
+├── timeline-editor.tsx   # Audio timeline editor
+└── video-generator.tsx   # Video generation interface
+
+hooks/                    # Custom React hooks
+├── use-auto-save.ts      # Auto-save functionality
+├── use-mobile.ts         # Mobile detection
+└── use-toast.ts          # Toast notifications
+
+lib/                      # Utility functions and helpers
+├── supabase/             # Supabase client configuration
+│   ├── client.ts         # Client-side Supabase client
+│   └── server.ts         # Server-side Supabase client
+├── api-client.ts         # Secure API client
+├── auth-actions.ts       # Authentication actions
+├── performance.ts        # Performance optimization utilities
+├── security.ts           # Security utilities
+├── types.ts              # TypeScript type definitions
+└── utils.ts              # General utility functions
+
+5(Audio)/                 # Audio processing scripts and outputs
+├── outputs/              # Generated audio files and transcripts
+├── process_file.py       # Main audio generation script
+├── requirements.txt      # Python dependencies
+└── voices/               # Voice sample files
+
+scripts/                  # Utility scripts
+├── build-optimized.js    # Production build script
+└── *.sql                 # Database schema scripts
+
+styles/                   # Global styles
+└── globals.css           # Global CSS styles
+
+temp/                     # Temporary files
+```
+
+### 5.2 Core Component Descriptions
+
+#### 5.2.1 Main Application ([app/page.tsx](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/app/page.tsx))
+
+The main application component serves as the central hub for all functionality:
+
+- **State Management**: Manages application state including authentication, user settings, and project data
+- **Tab Navigation**: Provides access to all major features through a tabbed interface
+- **Authentication**: Handles user login and session management
+- **Data Flow**: Coordinates data flow between components
+
+#### 5.2.2 AI Audio Generator ([components/gemini-generator.tsx](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/components/gemini-generator.tsx))
+
+The AI audio generator creates multi-persona dialogue from text input:
+
+- **Persona Configuration**: Allows customization of host personas with distinct voices
+- **Voice Sample Playback**: Provides voice previews for different persona configurations
+- **Audio Generation**: Triggers the backend audio generation process
+- **Result Display**: Shows generated dialogue and audio preview
+
+#### 5.2.3 Timeline Editor ([components/timeline-editor.tsx](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/components/timeline-editor.tsx))
+
+The timeline editor provides precise control over audio tracks:
+
+- **Track Management**: Manages multiple audio tracks (dialogue, voiceover, music, etc.)
+- **Block Editing**: Allows cutting, copying, pasting, and deleting of audio segments
+- **Playback Controls**: Provides timeline navigation and playback functionality
+- **Audio Integration**: Integrates generated audio into the timeline
+
+#### 5.2.4 Video Generator ([components/video-generator.tsx](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/components/video-generator.tsx))
+
+The video generator transforms scripts and audio into professional videos:
+
+- **Style Selection**: Allows choosing from different video styles (news, documentary, etc.)
+- **Resolution Configuration**: Supports multiple output resolutions
+- **Video Generation**: Triggers the backend video generation process
+- **Result Preview**: Shows generated video with playback controls
+
+#### 5.2.5 Scene Manager ([components/scene-manager.tsx](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/components/scene-manager.tsx))
+
+The scene manager handles scene creation and editing:
+
+- **Scene Creation**: Provides templates for different scene types
+- **Asset Management**: Manages scene assets (images, videos, audio, text)
+- **Settings Configuration**: Allows customization of scene appearance and behavior
+- **Preview Functionality**: Provides scene preview capabilities
+
+#### 5.2.6 Export Pipeline ([components/export-pipeline.tsx](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/components/export-pipeline.tsx))
+
+The export pipeline manages multilingual video generation and export:
+
+- **Job Management**: Tracks export jobs and their progress
+- **Language Selection**: Allows selection of output languages
+- **Format Configuration**: Supports multiple video formats and qualities
+- **Progress Monitoring**: Shows real-time processing progress
+
+### 5.3 API Endpoints
+
+#### 5.3.1 Audio Processing ([app/api/audio/](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/app/api/audio))
+
+- **[POST] /api/audio/generate**: Generates audio from text input
+- **[GET] /api/audio/download/[filename]**: Downloads generated audio files
+- **[POST] /api/audio/sample**: Generates voice samples
+- **[POST] /api/audio/upload**: Uploads audio files
+
+#### 5.3.2 Video Processing ([app/api/video/](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/app/api/video))
+
+- **[POST] /api/video/generate**: Generates videos from scripts and audio
+- **[GET] /api/video/download/[filename]**: Downloads generated video files
+- **[GET] /api/video/thumbnail/[filename]**: Retrieves video thumbnails
+
+#### 5.3.3 Timeline Operations ([app/api/timeline/](file:///c%3A/Users/Aryan%20Mishra/OneDrive/Desktop/projects/Capstone/pscs-36-platform/app/api/timeline))
+
+- **[POST] /api/timeline/play**: Starts timeline playback
+- **[POST] /api/timeline/cut**: Cuts timeline blocks at specified times
+
+## 6. Model Integration and APIs
+
+### 6.1 Input/Output Formats
+
+#### 6.1.1 Text Input
+
+- **Format**: Plain text or structured JSON
+- **Encoding**: UTF-8
+- **Structure**: Linear text with optional section markers
+
+#### 6.1.2 Audio Output
+
+- **Format**: MP3/WAV
+- **Sample Rate**: 22050 Hz
+- **Bit Depth**: 16-bit
+- **Channels**: Mono or Stereo
+
+#### 6.1.3 Video Output
+
+- **Container**: MP4/WebM/MOV
+- **Video Codec**: H.264/VP9/ProRes
+- **Audio Codec**: AAC
+- **Resolution**: 720p/1080p/4K
+
+### 6.2 Libraries and Frameworks
+
+#### 6.2.1 Frontend Libraries
+
+- **React**: UI library for component-based development
+- **Next.js**: React framework with server-side rendering
+- **Tailwind CSS**: Utility-first CSS framework
+- **shadcn/ui**: Accessible UI component library
+- **Lucide React**: Icon library
+
+#### 6.2.2 Backend Libraries
+
+- **Node.js**: JavaScript runtime environment
+- **Python**: For audio processing scripts
+- **gTTS**: Google Text-to-Speech library
+- **pydub**: Audio manipulation library
+- **FFmpeg**: Multimedia processing framework
+
+#### 6.2.3 AI/ML Libraries
+
+- **Google Generative AI**: For text processing and dialogue generation
+- **pdf-extract**: PDF text extraction with OCR
+- **mammoth**: DOCX document processing
+
+### 6.3 API Integration
+
+#### 6.3.1 Internal APIs
+
+The platform uses Next.js API routes for all backend functionality:
+
+- **File Upload API**: Handles document ingestion
+- **Audio Generation API**: Processes text into audio
+- **Video Generation API**: Creates videos from scripts and audio
+- **Timeline API**: Manages timeline operations
+
+#### 6.3.2 External APIs
+
+The platform is designed to work without external API dependencies:
+
+- **Local AI Models**: All AI processing occurs locally
+- **Self-contained Processing**: No reliance on cloud services
+- **Offline Capability**: Full functionality without internet connection
+
+## 7. Training and Inference Pipelines
+
+### 7.1 Data Loading
+
+#### 7.1.1 Text Data Loading
+
+- **File Parsing**: PDF, DOCX, and TXT file parsing
+- **Content Extraction**: Text extraction using specialized libraries
+- **Preprocessing**: Text cleaning and normalization
+
+#### 7.1.2 Audio Data Loading
+
+- **Voice Sample Loading**: Pre-recorded voice samples for persona customization
+- **Audio File Processing**: MP3/WAV file handling
+- **Metadata Extraction**: Duration and format information
+
+#### 7.1.3 Video Data Loading
+
+- **Template Loading**: Pre-defined video templates
+- **Asset Management**: Image, video, and audio asset handling
+- **Configuration Loading**: Scene and export settings
+
+### 7.2 Model Execution
+
+#### 7.2.1 Text Processing Execution
+
+- **Summarization**: Time-based content summarization
+- **Dialogue Generation**: Multi-persona conversation creation
+- **Language Processing**: Multilingual text handling
+
+#### 7.2.2 Audio Processing Execution
+
+- **Voice Synthesis**: Text-to-speech conversion with persona customization
+- **Audio Enhancement**: Noise reduction and quality improvement
+- **Segment Processing**: Individual audio segment handling
+
+#### 7.2.3 Video Processing Execution
+
+- **Scene Rendering**: Template-based scene creation
+- **Visual Effects**: Animation and transition application
+- **Encoding**: Video format conversion and optimization
+
+### 7.3 Post-processing
+
+#### 7.3.1 Audio Post-processing
+
+- **Noise Reduction**: Spectral subtraction techniques
+- **Dynamic Range Compression**: Audio level normalization
+- **Equalization**: Frequency-specific adjustments
+- **Crossfading**: Smooth transitions between segments
+
+#### 7.3.2 Video Post-processing
+
+- **Caption Generation**: Timed text overlay creation
+- **Quality Optimization**: Resolution and bitrate adjustment
+- **Format Conversion**: Container and codec transformation
+
+## 8. Dependencies and Environment Setup
+
+### 8.1 System Requirements
+
+- **Operating System**: Windows 10/11, macOS 10.15+, or Linux
+- **Node.js**: Version 18 or higher
+- **Python**: Version 3.8 or higher
+- **Memory**: 8GB RAM minimum (16GB recommended)
+- **Storage**: 50GB free disk space for temporary files and outputs
+
+### 8.2 Required Software
+
+#### 8.2.1 Development Tools
+
+- **Node.js**: JavaScript runtime
+- **pnpm**: Package manager
+- **Python**: For audio processing scripts
+- **FFmpeg**: Multimedia processing framework
+
+#### 8.2.2 Optional Dependencies
+
+- **Supabase**: For backend services and authentication
+- **Git**: Version control system
+
+### 8.3 Installation Process
+
+#### 8.3.1 Frontend Setup
+
+1. Clone the repository
+2. Install dependencies with `pnpm install`
+3. Configure environment variables in `.env.local`
+4. Run development server with `pnpm dev`
+
+#### 8.3.2 Backend Setup
+
+1. Install Python dependencies with `pip install -r 5(Audio)/requirements.txt`
+2. Ensure FFmpeg is installed and accessible in PATH
+3. Configure any required environment variables
+
+#### 8.3.3 Environment Variables
+
+```
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+```
+
+## 9. References and Inspirations
+
+### 9.1 Research Papers
+
+1. **"Attention Is All You Need"** - Vaswani et al. (2017)
+   - Transformer architecture for sequence-to-sequence tasks
+   - Foundation for modern NLP models
+
+2. **"WaveNet: A Generative Model for Raw Audio"** - Oord et al. (2016)
+   - Deep generative model for audio synthesis
+   - Inspiration for advanced TTS systems
+
+3. **"Neural Machine Translation by Jointly Learning to Align and Translate"** - Bahdanau et al. (2014)
+   - Attention mechanism in neural machine translation
+   - Basis for multilingual processing
+
+### 9.2 Frameworks and Libraries
+
+1. **Next.js**: React framework for production applications
+   - Server-side rendering and static site generation
+   - API routes for backend functionality
+
+2. **React**: JavaScript library for building user interfaces
+   - Component-based architecture
+   - Virtual DOM for efficient rendering
+
+3. **Tailwind CSS**: Utility-first CSS framework
+   - Rapid UI development
+   - Consistent design system
+
+4. **FFmpeg**: Multimedia processing framework
+   - Video and audio encoding/decoding
+   - Format conversion and manipulation
+
+### 9.3 Pretrained Models
+
+1. **Google Generative AI**: For text processing and dialogue generation
+   - Natural language understanding
+   - Content summarization capabilities
+
+2. **gTTS**: Google Text-to-Speech library
+   - Multilingual voice synthesis
+   - Natural-sounding speech generation
+
+3. **pdf-extract**: PDF text extraction with OCR
+   - Document processing capabilities
+   - Optical character recognition
+
+## 10. Security and Performance Considerations
+
+### 10.1 Security Implementation
+
+#### 10.1.1 API Security
+
+- **Rate Limiting**: 100 requests per minute per IP
+- **JWT Authentication**: Secure token-based authentication
+- **CSRF Protection**: Cross-site request forgery prevention
+- **Input Sanitization**: Protection against injection attacks
+
+#### 10.1.2 Frontend Hardening
+
+- **Console Protection**: Disabled console methods in production
+- **DevTools Prevention**: Detection and blocking of developer tools
+- **DOM Mutation Protection**: Unauthorized DOM change detection
+- **Content Security Policy**: Restriction of resource loading
+
+#### 10.1.3 Data Protection
+
+- **File Upload Validation**: Type and size restrictions
+- **User Input Sanitization**: Removal of dangerous characters
+- **Secure Session Management**: Proper authentication handling
+
+### 10.2 Performance Optimization
+
+#### 10.2.1 Code Optimization
+
+- **Code Splitting**: Automatic bundle optimization
+- **Lazy Loading**: Components, images, and scripts loaded on demand
+- **Tree Shaking**: Removal of unused code
+
+#### 10.2.2 Asset Optimization
+
+- **Image Optimization**: Modern formats (WebP/AVIF) and responsive images
+- **Compression**: GZIP/Brotli compression for all assets
+- **Caching**: Browser and server-side caching strategies
+
+#### 10.2.3 Network Optimization
+
+- **Preloading**: Critical asset preloading
+- **Prefetching**: Route and resource prefetching
+- **CDN Usage**: Content delivery network integration
+
+This technical documentation provides a comprehensive overview of the PIB Multilingual Video Platform, detailing its architecture, components, and implementation approaches. The platform is designed to transform government press releases into engaging multilingual video content while maintaining high standards for security, performance, and usability.

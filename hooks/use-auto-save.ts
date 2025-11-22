@@ -13,7 +13,7 @@ interface AutoSaveOptions {
 export function useAutoSave({ data, onSave, enabled, interval = 30000 }: AutoSaveOptions) {
   const { toast } = useToast()
   const lastSavedData = useRef<any>(null)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isSaving = useRef(false)
 
   useEffect(() => {

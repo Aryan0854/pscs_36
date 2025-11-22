@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const token = `jwt_google_${mockGoogleUser.id}_${Date.now()}`
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     cookieStore.set("auth_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

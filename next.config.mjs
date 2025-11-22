@@ -10,21 +10,45 @@ const nextConfig = {
     unoptimized: true,
     domains: ['localhost', 'gzfblduetdukuxaholhf.supabase.co'],
   },
-  serverExternalPackages: ['@supabase/supabase-js'],
-  allowedDevOrigins: [
-    'work-1-nbmsjrpngvntyznq.prod-runtime.all-hands.dev',
-    'work-2-nbmsjrpngvntyznq.prod-runtime.all-hands.dev',
-    'localhost:3000',
-    '127.0.0.1:3000',
-  ],
   async headers() {
     return [
       {
         source: '/(.*)',
         headers: [
+          // Security Headers
+          {
+            key: 'Content-Security-Policy',
+            value: `
+              default-src 'self';
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.hcaptcha.com;
+              style-src 'self' 'unsafe-inline' https://hcaptcha.com https://*.hcaptcha.com;
+              img-src 'self' data: https: https://hcaptcha.com https://*.hcaptcha.com;
+              font-src 'self' https://r2cdn.perplexity.ai;
+              connect-src 'self' https://gzfblduetdukuxaholhf.supabase.co;
+              media-src 'self';
+              object-src 'none';
+              child-src 'self';
+              frame-src https://hcaptcha.com https://*.hcaptcha.com;
+              frame-ancestors 'none';
+              base-uri 'self';
+              form-action 'self';
+            `.replace(/\s{2,}/g, ' ').trim()
+          },
           {
             key: 'X-Frame-Options',
-            value: 'ALLOWALL',
+            value: 'DENY'
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin'
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()'
           },
           {
             key: 'Access-Control-Allow-Origin',

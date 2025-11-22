@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { toast } from "@/hooks/use-toast"
 import { Play, Download, Upload, Loader2, Mic, Users, FileText } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useLanguage } from "@/lib/contexts/language-context"
 
 interface AudioResult {
   success: boolean
@@ -29,11 +30,14 @@ interface AudioResult {
   message?: string
   rawOutput?: string
   error?: string
+  templateUsed?: string // Add template information
 }
 
 interface GeminiGeneratorProps {
   scriptText?: string
-  onAudioGenerated?: (audioUrl: string, transcriptUrl: string) => void
+  projectId?: string // Add projectId prop
+  onAudioGenerated?: (audioUrl: string, transcriptUrl: string, dialogue?: any[]) => void
+  onNavigateToTimeline?: () => void
 }
 
 interface VoicePersona {
@@ -44,148 +48,276 @@ interface VoicePersona {
   sampleUrl?: string
 }
 
-export default function GeminiGenerator({ scriptText: propScriptText, onAudioGenerated }: GeminiGeneratorProps) {
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [generationProgress, setGenerationProgress] = useState(0)
-  const [result, setResult] = useState<AudioResult | null>(null)
+const defaultPersonas: VoicePersona[] = [
+  {
+    id: '1',
+    name: 'Sarah Chen',
+    gender: 'female',
+    voiceType: 'professional'
+  },
+  {
+    id: '2',
+    name: 'Michael Rodriguez',
+    gender: 'male',
+    voiceType: 'authoritative'
+  },
+  {
+    id: '3',
+    name: 'Emma Thompson',
+    gender: 'female',
+    voiceType: 'engaging'
+  }
+]
+
+export function GeminiGenerator({ 
+  scriptText: propScriptText, 
+  projectId, // Add projectId prop
+  onAudioGenerated,
+  onNavigateToTimeline
+}: GeminiGeneratorProps) {
+  const { language: uiLanguage, t } = useLanguage()
+  const [scriptText, setScriptText] = useState(propScriptText || '')
   const [numHosts, setNumHosts] = useState(3)
-  const [personas, setPersonas] = useState<VoicePersona[]>([
-    { id: '1', name: 'Sarah Chen', gender: 'female', voiceType: 'professional' },
-    { id: '2', name: 'Dr. Michael Rodriguez', gender: 'male', voiceType: 'authoritative' },
-    { id: '3', name: 'Emma Thompson', gender: 'female', voiceType: 'engaging' }
-  ])
+  const [discussionTime, setDiscussionTime] = useState(60)
+  const [personas, setPersonas] = useState<VoicePersona[]>(defaultPersonas)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [audioResult, setAudioResult] = useState<AudioResult | null>(null)
   const [playingSample, setPlayingSample] = useState<string | null>(null)
-  const [localScriptText, setLocalScriptText] = useState("")
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Use prop script text if provided, otherwise use local state
-  const scriptText = propScriptText || localScriptText
-  const setScriptText = propScriptText ? () => {} : setLocalScriptText
+  // Update script text when prop changes
+  useEffect(() => {
+    if (propScriptText) {
+      setScriptText(propScriptText)
+    }
+  }, [propScriptText])
 
-  // Component will receive script text as prop or from context
+  // Restore persisted audio data on component mount
+  useEffect(() => {
+    const restorePersistedAudioData = () => {
+      const persistedAudioData = localStorage.getItem('persistedAudioData')
+      if (persistedAudioData) {
+        try {
+          const audioData = JSON.parse(persistedAudioData)
+          // Only restore if data is not too old (e.g., less than 24 hours)
+          if (Date.now() - audioData.timestamp < 24 * 60 * 60 * 1000) {
+            // Create audio result from persisted data
+            const result: AudioResult = {
+              success: true,
+              audioUrl: audioData.audioUrl,
+              transcriptUrl: audioData.transcriptUrl,
+              dialogue: audioData.dialogue,
+              summary: audioData.summary,
+              personas: audioData.personas,
+              templateUsed: audioData.templateUsed
+            }
+            setAudioResult(result)
+          } else {
+            // Remove old data
+            localStorage.removeItem('persistedAudioData')
+          }
+        } catch (e) {
+          console.error('Failed to restore persisted audio data:', e)
+          localStorage.removeItem('persistedAudioData')
+        }
+      }
+    }
 
-  const handleGenerate = async () => {
+    restorePersistedAudioData()
+
+    // Listen for storage changes (e.g., when data is cleared on logout)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'persistedAudioData') {
+        if (e.newValue === null) {
+          // Data was cleared (e.g., on logout)
+          setAudioResult(null);
+        } else {
+          // Data was updated
+          try {
+            const audioData = JSON.parse(e.newValue);
+            const result: AudioResult = {
+              success: true,
+              audioUrl: audioData.audioUrl,
+              transcriptUrl: audioData.transcriptUrl,
+              dialogue: audioData.dialogue,
+              summary: audioData.summary,
+              personas: audioData.personas,
+              templateUsed: audioData.templateUsed
+            };
+            setAudioResult(result);
+          } catch (error) {
+            console.error('Failed to parse updated audio data:', error);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [])
+
+  const updateNumHosts = (num: number) => {
+    setNumHosts(num)
+    
+    // Adjust personas array size
+    if (num > personas.length) {
+      // Add new personas
+      const newPersonas = [...personas]
+      for (let i = personas.length; i < num; i++) {
+        newPersonas.push({
+          id: `${i + 1}`,
+          name: `Host ${i + 1}`,
+          gender: i % 2 === 0 ? 'male' : 'female',
+          voiceType: 'professional'
+        })
+      }
+      setPersonas(newPersonas)
+    } else if (num < personas.length) {
+      // Remove excess personas
+      setPersonas(personas.slice(0, num))
+    }
+  }
+
+  const updatePersona = (index: number, field: keyof VoicePersona, value: string) => {
+    const updatedPersonas = [...personas]
+    updatedPersonas[index] = {
+      ...updatedPersonas[index],
+      [field]: value
+    }
+    setPersonas(updatedPersonas)
+  }
+
+  const handleGenerateAudio = async () => {
     if (!scriptText.trim()) {
       toast({
-        title: "Script Required",
-        description: "Please provide script text to generate audio discussion.",
+        title: "Error",
+        description: "Please enter some text to generate audio",
         variant: "destructive",
       })
       return
     }
 
     setIsGenerating(true)
-    setGenerationProgress(0)
-    setResult(null)
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setGenerationProgress(prev => Math.min(prev + 10, 90))
-    }, 500)
+    setProgress(0)
 
     try {
-      console.log("Starting audio generation with script text")
-      console.log("Using personas:", personas.slice(0, numHosts))
+      // Simulate progress
+      const interval = setInterval(() => {
+        setProgress((prev: number) => Math.min(prev + 10, 90))
+      }, 200)
 
+      // Prepare form data
       const formData = new FormData()
       formData.append('text', scriptText)
-      formData.append('personas', JSON.stringify(personas.slice(0, numHosts)))
-      formData.append('numHosts', numHosts.toString())
+      formData.append('personas', JSON.stringify(personas))
+      formData.append('numHosts', personas.length.toString())
+      formData.append('discussionTime', discussionTime.toString())
+      formData.append('projectId', projectId || '') // Add project ID
+      
+      // Add audio language setting
+      const userSettings = localStorage.getItem("userSettings")
+      let audioLanguage = uiLanguage // Default to UI language
+      
+      if (userSettings) {
+        try {
+          const settings = JSON.parse(userSettings)
+          if (settings.audioLanguage && settings.audioLanguage !== "same-as-ui") {
+            audioLanguage = settings.audioLanguage
+          }
+        } catch (e) {
+          console.error("Failed to parse user settings", e)
+        }
+      }
+      
+      formData.append('language', audioLanguage) // Add language to form data
 
-      console.log("Making API call to /api/audio/generate")
-      const response = await fetch("/api/audio/generate", {
-        method: "POST",
+      const response = await fetch('/api/audio/generate', {
+        method: 'POST',
         body: formData,
       })
 
-      console.log("API response status:", response.status)
-      clearInterval(progressInterval)
-      setGenerationProgress(100)
-
-      const data: AudioResult = await response.json()
-      console.log("API response data:", data)
+      clearInterval(interval)
+      setProgress(100)
 
       if (!response.ok) {
-        throw new Error(data.error || "Audio generation failed")
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate audio')
       }
 
-      setResult(data)
+      const data = await response.json()
+      console.log('Audio generation response:', data)
 
-      if (data.audioUrl && data.transcriptUrl && onAudioGenerated) {
-        onAudioGenerated(data.audioUrl, data.transcriptUrl)
+      if (data.success) {
+        const result: AudioResult = {
+          success: true,
+          audioUrl: data.audioUrl,
+          transcriptUrl: data.transcriptUrl,
+          dialogue: data.dialogue,
+          summary: data.summary,
+          personas: data.personas,
+          templateUsed: data.templateUsed
+        }
+        
+        setAudioResult(result)
+
+        // Persist the generated audio data to localStorage
+        const audioData = {
+          audioUrl: data.audioUrl,
+          transcriptUrl: data.transcriptUrl,
+          dialogue: data.dialogue,
+          summary: data.summary,
+          personas: data.personas,
+          templateUsed: data.templateUsed,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('persistedAudioData', JSON.stringify(audioData));
+
+        // Pass the result to the parent component
+        if (onAudioGenerated) {
+          onAudioGenerated(data.audioUrl, data.transcriptUrl, data.dialogue)
+        }
+
+        // Add a small delay to ensure UI updates
+        setTimeout(() => {
+          toast({
+            title: "Audio Generated",
+            description: "Your audio has been successfully generated.",
+          })
+        }, 100);
+      } else {
+        throw new Error(data.error || 'Failed to generate audio')
       }
-
-      toast({
-        title: "Audio Generated Successfully!",
-        description: "Your AI-powered news discussion has been created.",
-      })
-
     } catch (error) {
-      console.error("Audio generation error:", error)
-      clearInterval(progressInterval)
-      setGenerationProgress(0)
+      console.error('Audio generation error:', error)
       toast({
         title: "Generation Failed",
-        description: error instanceof Error ? error.message : "An error occurred during audio generation",
+        description: error instanceof Error ? error.message : "Failed to generate audio",
         variant: "destructive",
       })
     } finally {
-      setTimeout(() => {
-        setIsGenerating(false)
-        setGenerationProgress(0)
-      }, 1000)
+      setIsGenerating(false)
+      setProgress(0)
     }
   }
 
-  const handleDownload = (url: string, filename: string) => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  const updateNumHosts = (newNum: number) => {
-    setNumHosts(newNum)
-    setPersonas(prev => {
-      const updated = [...prev]
-      if (newNum > prev.length) {
-        // Add new personas
-        for (let i = prev.length; i < newNum; i++) {
-          updated.push({
-            id: `${i + 1}`,
-            name: `Host ${i + 1}`,
-            gender: 'male' as const,
-            voiceType: 'neutral'
-          })
-        }
-      } else if (newNum < prev.length) {
-        // Remove excess personas
-        updated.splice(newNum)
-      }
-      return updated
-    })
-  }
-
-  const updatePersona = (id: string, field: keyof VoicePersona, value: any) => {
-    setPersonas(prev => prev.map(p =>
-      p.id === id ? { ...p, [field]: value } : p
-    ))
-  }
-
   const playVoiceSample = async (persona: VoicePersona) => {
-    setPlayingSample(persona.id)
     try {
-      // Use Web Speech API for voice samples (browser-based TTS)
+      setPlayingSample(persona.id)
+      
+      // Try to use Web Speech API for immediate feedback
       if ('speechSynthesis' in window) {
         const utterance = new SpeechSynthesisUtterance(
           `Hello, this is ${persona.name} speaking. I am a ${persona.gender} voice with a ${persona.voiceType} tone.`
         )
-
-        // Try to find a voice that matches the gender
+        
+        // Try to find a suitable voice
         const voices = speechSynthesis.getVoices()
-        const preferredVoice = voices.find(voice =>
-          voice.lang.startsWith('en') &&
+        const preferredVoice = voices.find(voice => 
+          voice.lang.includes('en') && 
           ((persona.gender === 'female' && voice.name.toLowerCase().includes('female')) ||
            (persona.gender === 'male' && voice.name.toLowerCase().includes('male')) ||
            voice.name.toLowerCase().includes(persona.gender))
@@ -306,8 +438,7 @@ export default function GeminiGenerator({ scriptText: propScriptText, onAudioGen
   }
 
   const voiceTypes = [
-    'professional', 'authoritative', 'engaging', 'warm', 'energetic',
-    'calm', 'confident', 'friendly', 'formal', 'casual'
+    'professional', 'engaging', 'warm', 'confident'
   ]
 
   return (
@@ -362,26 +493,44 @@ export default function GeminiGenerator({ scriptText: propScriptText, onAudioGen
               </Select>
             </div>
 
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Discussion Time</Label>
+                <p className="text-xs text-muted-foreground">Choose discussion duration</p>
+              </div>
+              <Select value={discussionTime.toString()} onValueChange={(value) => setDiscussionTime(parseInt(value))}>
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 seconds</SelectItem>
+                  <SelectItem value="20">20 seconds</SelectItem>
+                  <SelectItem value="30">30 seconds</SelectItem>
+                  <SelectItem value="40">40 seconds</SelectItem>
+                  <SelectItem value="50">50 seconds</SelectItem>
+                  <SelectItem value="60">1 minute</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-3">
               <Label>Configure Host Voices</Label>
               {personas.slice(0, numHosts).map((persona, index) => (
                 <Card key={persona.id} className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div className="space-y-2">
-                      <Label className="text-sm">Host {index + 1} Name</Label>
+                      <Label htmlFor={`name-${index}`}>Name</Label>
                       <Input
+                        id={`name-${index}`}
                         value={persona.name}
-                        onChange={(e) => updatePersona(persona.id, 'name', e.target.value)}
-                        placeholder="Enter name"
+                        onChange={(e) => updatePersona(index, 'name', e.target.value)}
+                        placeholder="Host name"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm">Gender</Label>
-                      <Select
-                        value={persona.gender}
-                        onValueChange={(value: 'male' | 'female') => updatePersona(persona.id, 'gender', value)}
-                      >
-                        <SelectTrigger>
+                      <Label htmlFor={`gender-${index}`}>Gender</Label>
+                      <Select value={persona.gender} onValueChange={(value) => updatePersona(index, 'gender', value as 'male' | 'female')}>
+                        <SelectTrigger id={`gender-${index}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -391,12 +540,9 @@ export default function GeminiGenerator({ scriptText: propScriptText, onAudioGen
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm">Voice Type</Label>
-                      <Select
-                        value={persona.voiceType}
-                        onValueChange={(value) => updatePersona(persona.id, 'voiceType', value)}
-                      >
-                        <SelectTrigger>
+                      <Label htmlFor={`voice-${index}`}>Voice Type</Label>
+                      <Select value={persona.voiceType} onValueChange={(value) => updatePersona(index, 'voiceType', value)}>
+                        <SelectTrigger id={`voice-${index}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -408,17 +554,24 @@ export default function GeminiGenerator({ scriptText: propScriptText, onAudioGen
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex gap-2">
+                    <div>
                       <Button
                         variant="outline"
                         size="sm"
+                        className="w-full"
                         onClick={() => playVoiceSample(persona)}
                         disabled={playingSample === persona.id}
                       >
                         {playingSample === persona.id ? (
-                          <>🔊 Playing...</>
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Playing...
+                          </>
                         ) : (
-                          <>🎧 Sample</>
+                          <>
+                            <Play className="mr-2 h-4 w-4" />
+                            Sample
+                          </>
                         )}
                       </Button>
                     </div>
@@ -426,157 +579,109 @@ export default function GeminiGenerator({ scriptText: propScriptText, onAudioGen
                 </Card>
               ))}
             </div>
-          </div>
 
-          <Button
-            onClick={handleGenerate}
-            disabled={isGenerating || !scriptText.trim()}
-            className="w-full"
-            size="lg"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating Audio Discussion...
-              </>
-            ) : (
-              <>
-                <Mic className="mr-2 h-4 w-4" />
-                Generate AI Audio Discussion
-              </>
-            )}
-          </Button>
+            <Button
+              onClick={handleGenerateAudio}
+              disabled={isGenerating || !scriptText.trim()}
+              className="w-full"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating Audio...
+                </>
+              ) : (
+                <>
+                  <Mic className="mr-2 h-4 w-4" />
+                  Generate AI Audio Discussion
+                </>
+              )}
+            </Button>
 
-          {isGenerating && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Processing document...</span>
-                <span>{generationProgress}%</span>
+            {isGenerating && (
+              <div className="space-y-2">
+                <Progress value={progress} className="w-full" />
+                <p className="text-center text-sm text-muted-foreground">
+                  Generating your audio discussion... {progress}%
+                </p>
               </div>
-              <Progress value={generationProgress} className="w-full" />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
 
-      {result && result.success && (
-        <div className="space-y-6">
-          {result.summary && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Document Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{result.summary}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {result.personas && result.personas.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  AI Personas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {result.personas.map((persona, index) => (
-                    <div key={index} className="p-3 border rounded-lg">
-                      <h4 className="font-medium">{persona.name}</h4>
-                      <p className="text-sm text-muted-foreground">{persona.type} • {persona.expertise}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {result.dialogue && result.dialogue.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Generated Dialogue</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {result.dialogue.map((turn, index) => (
-                    <div key={index} className="flex gap-3">
-                      <Badge variant="outline" className="shrink-0">
-                        {turn.speaker}
-                      </Badge>
-                      <p className="text-sm flex-1">{turn.content}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Generated Audio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {result.audioUrl && (
-                <div className="space-y-4">
-                  <div className="bg-muted p-4 rounded-lg">
-                    <h4 className="font-medium mb-2">🎧 Listen to AI News Discussion</h4>
-                    <audio
-                      controls
-                      className="w-full"
-                      preload="metadata"
-                    >
-                      <source src={result.audioUrl} type="audio/wav" />
-                      Your browser does not support the audio element.
-                    </audio>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Multi-persona AI discussion generated from your document
-                    </p>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleDownload(result.audioUrl!, 'ai_news_discussion.wav')}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Audio
-                    </Button>
-                    {result.transcriptUrl && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleDownload(result.transcriptUrl!, 'transcript.txt')}
+            {audioResult && audioResult.success && (
+              <Card className="border-green-200 bg-green-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-green-800">
+                    <Mic className="h-5 w-5" />
+                    Audio Generated Successfully
+                  </CardTitle>
+                  {audioResult.templateUsed && (
+                    <CardDescription>
+                      Template used: {audioResult.templateUsed}
+                    </CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {audioResult.audioUrl && (
+                    <div className="flex items-center gap-2">
+                      <audio 
+                        key={audioResult.audioUrl} 
+                        controls 
+                        className="w-full"
+                        onError={(e) => {
+                          console.error('Audio element error:', e);
+                          toast({
+                            title: "Audio Playback Error",
+                            description: "There was an issue playing the audio. Try downloading it instead.",
+                            variant: "destructive",
+                          });
+                        }}
                       >
-                        <FileText className="mr-2 h-4 w-4" />
-                        Download Transcript
+                        <source src={audioResult.audioUrl} type="audio/mpeg" />
+                        Your browser does not support the audio element.
+                      </audio>
+                    </div>
+                  )}
+                  
+                  {audioResult.dialogue && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-black">Generated Dialogue</h4>
+                      <div className="max-h-40 overflow-y-auto border rounded p-2 bg-white">
+                        {audioResult.dialogue.map((turn, index) => (
+                          <div key={index} className="text-sm py-1 border-b last:border-b-0 text-black">
+                            <span className="font-medium text-black">{turn.speaker}:</span> <span className="text-black">{turn.content}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    {audioResult.audioUrl && (
+                      <Button asChild>
+                        <a href={audioResult.audioUrl} download>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download Audio
+                        </a>
                       </Button>
                     )}
+                    {audioResult.transcriptUrl && (
+                      <Button asChild variant="outline">
+                        <a href={audioResult.transcriptUrl} download>
+                          <FileText className="mr-2 h-4 w-4" />
+                          Download Transcript
+                        </a>
+                      </Button>
+                    )}
+                    <Button onClick={onNavigateToTimeline} variant="outline">
+                      Edit in Timeline
+                    </Button>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {result && !result.success && result.error && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-red-600">Generation Failed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-red-600">{result.error}</p>
-            {result.rawOutput && (
-              <details className="mt-2">
-                <summary className="text-sm cursor-pointer">Show raw output</summary>
-                <pre className="text-xs mt-2 p-2 bg-gray-100 rounded overflow-x-auto">
-                  {result.rawOutput}
-                </pre>
-              </details>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

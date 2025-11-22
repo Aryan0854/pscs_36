@@ -1,4 +1,6 @@
 // API client utility for frontend components
+import { SecurityUtils } from "@/lib/security"
+
 class ApiClient {
   private baseUrl: string
 
@@ -9,12 +11,18 @@ class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`
 
+    // Generate CSRF token for state-changing requests
+    const csrfToken = SecurityUtils.generateCSRFToken()
+
     const config: RequestInit = {
       headers: {
         "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken,
         ...options.headers,
       },
       ...options,
+      // Add credentials for authentication
+      credentials: "include",
     }
 
     const response = await fetch(url, config)
@@ -120,12 +128,42 @@ class ApiClient {
     return fetch(`${this.baseUrl}/upload`, {
       method: "POST",
       body: formData,
+      credentials: "include",
     }).then((response) => {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       return response.json()
     })
+  }
+  
+  // Enhanced method with input sanitization
+  async secureRequest<T>(endpoint: string, data: any, options: RequestInit = {}): Promise<T> {
+    // Sanitize all input data
+    const sanitizedData = this.sanitizeData(data);
+    
+    return this.request(endpoint, {
+      ...options,
+      body: JSON.stringify(sanitizedData),
+    });
+  }
+  
+  // Recursive data sanitization
+  private sanitizeData(data: any): any {
+    if (typeof data === 'string') {
+      return SecurityUtils.sanitizeInput(data);
+    } else if (Array.isArray(data)) {
+      return data.map(item => this.sanitizeData(item));
+    } else if (typeof data === 'object' && data !== null) {
+      const sanitized: any = {};
+      for (const key in data) {
+        if (data.hasOwnProperty(key)) {
+          sanitized[key] = this.sanitizeData(data[key]);
+        }
+      }
+      return sanitized;
+    }
+    return data;
   }
 }
 

@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 interface PlayRequest {
-  projectId: string
+  projectId?: string
+  currentTime?: number
+  blocks?: any[]
   startTime?: number
   endTime?: number
   speed?: number
@@ -10,33 +12,35 @@ interface PlayRequest {
 export async function POST(request: NextRequest) {
   try {
     const body: PlayRequest = await request.json()
-    const { projectId, startTime = 0, endTime, speed = 1 } = body
+    const { projectId, currentTime = 0, blocks, startTime, endTime, speed = 1 } = body
 
-    if (!projectId) {
+    // Allow either projectId (for saved projects) or blocks/currentTime (for live timeline)
+    if (!projectId && !blocks) {
       return NextResponse.json(
         {
           success: false,
-          error: "Project ID is required",
+          error: "Either projectId or blocks data is required",
         },
         { status: 400 },
       )
     }
 
     // In production, this would:
-    // 1. Load the project timeline data
+    // 1. Load the project timeline data or use provided blocks
     // 2. Start media playback synchronization
     // 3. Handle real-time playback state
     // 4. Manage audio/video track synchronization
 
     const playbackSession = {
       id: `playback-${Date.now()}`,
-      projectId,
-      startTime,
+      projectId: projectId || `live-${Date.now()}`,
+      currentTime: currentTime || startTime || 0,
+      blocks: blocks || [],
+      startTime: startTime || currentTime || 0,
       endTime,
       speed,
       status: "playing",
-      currentTime: startTime,
-      duration: endTime ? endTime - startTime : 120, // Mock duration
+      duration: endTime ? endTime - (startTime || currentTime || 0) : 180, // Default 3 minutes
       createdAt: new Date().toISOString(),
     }
 

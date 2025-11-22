@@ -3,6 +3,7 @@
 import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { SecurityUtils } from "@/lib/security"
 
 export async function signInWithEmail(prevState: any, formData: FormData) {
   if (!formData) {
@@ -16,13 +17,17 @@ export async function signInWithEmail(prevState: any, formData: FormData) {
     return { error: "Email and password are required" }
   }
 
+  // Sanitize inputs
+  const sanitizedEmail = SecurityUtils.sanitizeInput(email.toString())
+  const sanitizedPassword = SecurityUtils.sanitizeInput(password.toString())
+
   const cookieStore = cookies()
   const supabase = createServerActionClient({ cookies: () => cookieStore })
 
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.toString(),
-      password: password.toString(),
+      email: sanitizedEmail,
+      password: sanitizedPassword,
     })
 
     if (error) {
@@ -51,18 +56,25 @@ export async function signUpWithEmail(prevState: any, formData: FormData) {
     return { error: "Email, password, and name are required" }
   }
 
+  // Sanitize inputs
+  const sanitizedEmail = SecurityUtils.sanitizeInput(email.toString())
+  const sanitizedPassword = SecurityUtils.sanitizeInput(password.toString())
+  const sanitizedName = SecurityUtils.sanitizeInput(name.toString())
+  const sanitizedRole = role ? SecurityUtils.sanitizeInput(role.toString()) : "content-creator"
+  const sanitizedDepartment = department ? SecurityUtils.sanitizeInput(department.toString()) : ""
+
   const cookieStore = cookies()
   const supabase = createServerActionClient({ cookies: () => cookieStore })
 
   try {
     const { data, error } = await supabase.auth.signUp({
-      email: email.toString(),
-      password: password.toString(),
+      email: sanitizedEmail,
+      password: sanitizedPassword,
       options: {
         data: {
-          name: name.toString(),
-          role: role?.toString() || "content-creator",
-          department: department?.toString() || "",
+          name: sanitizedName,
+          role: sanitizedRole,
+          department: sanitizedDepartment,
         },
         emailRedirectTo:
           process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ||

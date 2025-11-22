@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { createServerClient } from "@/lib/supabase/server"
 
 interface AnalyticsData {
   projectStats: {
@@ -36,46 +37,156 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const timeRange = searchParams.get("timeRange") || "7d"
 
-    // Mock analytics data - in production, this would be calculated from real data
+    // Create Supabase client
+    const supabase = await createServerClient(request)
+
+    // Fetch real data from the database
+    const [
+      projectsResult,
+      exportsResult,
+      allExportsResult,
+      languageDataResult,
+      projectTrendsResult,
+      processingTimesResult,
+      systemMetricsResult
+    ] = await Promise.all([
+      supabase.from("projects").select("*"),
+      supabase.from("project_exports").select("*").eq("status", "completed"),
+      supabase.from("project_exports").select("id, status, language").in("status", ["pending", "processing"]),
+      supabase.from("language_usage").select("language, usage_count"),
+      supabase
+        .from("projects")
+        .select("created_at")
+        .gte("created_at", new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000).toISOString()),
+      supabase
+        .from("project_exports")
+        .select("processing_time_minutes, completed_at")
+        .not("completed_at", "is", null)
+        .gte("completed_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+      supabase
+        .from("system_metrics")
+        .select("*")
+        .gte("recorded_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order("recorded_at", { ascending: false })
+    ])
+
+    const { data: projects } = projectsResult
+    const { data: exports } = exportsResult
+    const { data: allExports } = allExportsResult
+    const { data: languageData } = languageDataResult
+    const { data: projectTrends } = projectTrendsResult
+    const { data: processingTimes } = processingTimesResult
+    const { data: systemMetrics } = systemMetricsResult
+
+    // Aggregate language usage from multiple sources
+    const languageUsageMap: { [key: string]: number } = {}
+    
+    // Count from language_usage table
+    languageData?.forEach((item) => {
+      if (item.language) {
+        languageUsageMap[item.language] = (languageUsageMap[item.language] || 0) + (item.usage_count || 0)
+      }
+    })
+    
+    // Count from completed exports (real usage data)
+    exports?.forEach((exp: any) => {
+      if (exp.language) {
+        languageUsageMap[exp.language] = (languageUsageMap[exp.language] || 0) + 1
+      }
+    })
+    
+    // Count from pending/processing exports (these are separate from completed exports)
+    allExports?.forEach((exp: any) => {
+      if (exp.language && exp.status !== "completed") {
+        languageUsageMap[exp.language] = (languageUsageMap[exp.language] || 0) + 1
+      }
+    })
+
+    const languageUsage = Object.entries(languageUsageMap).map(([language, count]) => ({
+      name: getLanguageName(language),
+      value: count,
+      color: getLanguageColor(language),
+    }))
+
+    // Calculate project stats
+    const projectStats = {
+      totalProjects: projects?.length || 0,
+      activeProjects: projects?.filter((p) => p.status === "active").length || 0,
+      completedProjects: projects?.filter((p) => p.status === "completed").length || 0,
+      totalLanguages: Object.keys(languageUsageMap).length,
+      totalDuration: `${projects?.reduce((sum, p) => sum + (p.duration_minutes || 0), 0) || 0}m`,
+      processingTime: `${exports?.reduce((sum, e) => sum + (e.processing_time_minutes || 0), 0) || 0}m`,
+    }
+
+    // Format project trends for bar chart
+    const trendsData = Array.from({ length: 6 }, (_, i) => {
+      const date = new Date()
+      date.setMonth(date.getMonth() - (5 - i))
+      const monthName = date.toLocaleDateString("en", { month: "short" })
+      const targetMonth = date.getMonth()
+      const targetYear = date.getFullYear()
+
+      const monthProjects =
+        projectTrends?.filter((p) => {
+          const projectDate = new Date(p.created_at)
+          return projectDate.getMonth() === targetMonth && projectDate.getFullYear() === targetYear
+        }).length || 0
+
+      const monthExports =
+        exports?.filter((e) => {
+          const exportDate = new Date(e.created_at)
+          return exportDate.getMonth() === targetMonth && exportDate.getFullYear() === targetYear
+        }).length || 0
+
+      return {
+        month: monthName,
+        projects: monthProjects,
+        exports: monthExports,
+      }
+    })
+
+    // Format processing time trends
+    const processingTimeChart = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date()
+      date.setDate(date.getDate() - (6 - i))
+      const dayName = date.toLocaleDateString("en", { weekday: "short" })
+
+      const dayProcessingTimes =
+        processingTimes?.filter((pt) => {
+          const ptDate = new Date(pt.completed_at)
+          return ptDate.toDateString() === date.toDateString()
+        }) || []
+
+      const avgTime =
+        dayProcessingTimes.length > 0
+          ? dayProcessingTimes.reduce((sum, pt) => sum + pt.processing_time_minutes, 0) / dayProcessingTimes.length
+          : 0
+
+      return {
+        day: dayName,
+        time: Math.round(avgTime),
+      }
+    })
+
+    // Get latest system metrics
+    // Count active jobs from exports with pending or processing status
+    const activeJobsCount = allExports?.filter((exp: any) => 
+      exp.status === "pending" || exp.status === "processing"
+    ).length || 0
+    
+    const latestMetrics = {
+      cpuUsage: systemMetrics?.find((m) => m.metric_type === "cpu_usage")?.value || 0,
+      memoryUsage: systemMetrics?.find((m) => m.metric_type === "memory_usage")?.value || 0,
+      storageUsage: systemMetrics?.find((m) => m.metric_type === "storage_usage")?.value || 0,
+      activeJobs: activeJobsCount,
+    }
+
     const analyticsData: AnalyticsData = {
-      projectStats: {
-        totalProjects: 47,
-        activeProjects: 8,
-        completedProjects: 39,
-        totalLanguages: 14,
-        totalDuration: "18h 32m",
-        processingTime: "142h 15m",
-      },
-      systemMetrics: {
-        cpuUsage: Math.floor(Math.random() * 30) + 50, // 50-80%
-        memoryUsage: Math.floor(Math.random() * 20) + 40, // 40-60%
-        storageUsage: Math.floor(Math.random() * 15) + 65, // 65-80%
-        activeJobs: Math.floor(Math.random() * 5) + 1, // 1-5
-      },
-      languageUsage: [
-        { name: "Hindi", value: 35, color: "#2563eb" },
-        { name: "English", value: 28, color: "#059669" },
-        { name: "Bengali", value: 15, color: "#dc2626" },
-        { name: "Tamil", value: 12, color: "#7c3aed" },
-        { name: "Telugu", value: 10, color: "#ea580c" },
-      ],
-      projectTrends: [
-        { month: "Jan", projects: 12, exports: 45 },
-        { month: "Feb", projects: 19, exports: 67 },
-        { month: "Mar", projects: 15, exports: 52 },
-        { month: "Apr", projects: 23, exports: 78 },
-        { month: "May", projects: 18, exports: 61 },
-        { month: "Jun", projects: 25, exports: 89 },
-      ],
-      processingTimes: [
-        { day: "Mon", time: Math.floor(Math.random() * 20) + 30 },
-        { day: "Tue", time: Math.floor(Math.random() * 20) + 30 },
-        { day: "Wed", time: Math.floor(Math.random() * 20) + 30 },
-        { day: "Thu", time: Math.floor(Math.random() * 20) + 30 },
-        { day: "Fri", time: Math.floor(Math.random() * 20) + 30 },
-        { day: "Sat", time: Math.floor(Math.random() * 20) + 30 },
-        { day: "Sun", time: Math.floor(Math.random() * 20) + 30 },
-      ],
+      projectStats,
+      systemMetrics: latestMetrics,
+      languageUsage,
+      projectTrends: trendsData,
+      processingTimes: processingTimeChart,
     }
 
     return NextResponse.json({
@@ -84,6 +195,7 @@ export async function GET(request: NextRequest) {
       timeRange,
     })
   } catch (error) {
+    console.error("Analytics API error:", error)
     return NextResponse.json(
       {
         success: false,
@@ -92,4 +204,44 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     )
   }
+}
+
+function getLanguageName(code: string): string {
+  const languages: { [key: string]: string } = {
+    hi: "Hindi",
+    en: "English",
+    bn: "Bengali",
+    ta: "Tamil",
+    te: "Telugu",
+    gu: "Gujarati",
+    mr: "Marathi",
+    kn: "Kannada",
+    ml: "Malayalam",
+    or: "Odia",
+    pa: "Punjabi",
+    as: "Assamese",
+    ur: "Urdu",
+    ne: "Nepali",
+  }
+  return languages[code] || code
+}
+
+function getLanguageColor(code: string): string {
+  const colors: { [key: string]: string } = {
+    hi: "#2563eb",
+    en: "#059669",
+    bn: "#dc2626",
+    ta: "#7c3aed",
+    te: "#ea580c",
+    gu: "#0891b2",
+    mr: "#be123c",
+    kn: "#9333ea",
+    ml: "#c2410c",
+    or: "#0d9488",
+    pa: "#7c2d12",
+    as: "#1e40af",
+    ur: "#991b1b",
+    ne: "#6d28d9",
+  }
+  return colors[code] || "#6b7280"
 }

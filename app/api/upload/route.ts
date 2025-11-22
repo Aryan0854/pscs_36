@@ -83,19 +83,54 @@ export async function POST(request: NextRequest) {
 
         console.log("[v0] Upload API: Temp file created at:", tempFilePath)
 
-        // Use pdf-extract with file path
-        // @ts-ignore
-        const pdfExtract = (await import("pdf-extract")).default
-        const extracted = await new Promise((resolve, reject) => {
-          pdfExtract(tempFilePath, {}, (err: any, data: any) => {
-            if (err) reject(err)
-            else resolve(data)
+        // Try multiple PDF extraction methods
+        let extractionSuccessful = false;
+        
+        // Method 1: Try pdf-extract with text type
+        try {
+          // @ts-ignore
+          const pdfExtract = (await import("pdf-extract")).default
+          const extracted = await new Promise((resolve, reject) => {
+            pdfExtract(tempFilePath, { type: "text" }, (err: any, data: any) => {
+              if (err) {
+                console.error("[v0] Upload API: PDF extraction failed with pdf-extract:", err)
+                reject(err)
+              } else {
+                resolve(data)
+              }
+            })
           })
-        })
-        extractedText = (extracted as any).text.trim()
+          extractedText = (extracted as any).text.trim()
+          extractionSuccessful = true
+          console.log("[v0] Upload API: PDF text extraction successful with pdf-extract, length:", extractedText.length)
+        } catch (pdfError) {
+          console.error("[v0] Upload API: PDF extraction failed with pdf-extract:", pdfError)
+        }
 
-        console.log("[v0] Upload API: PDF text extraction successful, length:", extractedText.length)
-        console.log("[v0] Upload API: Extracted text preview:", extractedText.substring(0, 500))
+        // Method 2: Try pdf-parse as fallback if pdf-extract failed
+        if (!extractionSuccessful) {
+          try {
+            const { PDFParse } = await import("pdf-parse")
+            const pdfParser = new PDFParse({ data: buffer })
+            const textResult = await pdfParser.getText()
+            extractedText = textResult.text.trim()
+            extractionSuccessful = true
+            console.log("[v0] Upload API: PDF text extraction successful with pdf-parse, length:", extractedText.length)
+          } catch (parseError) {
+            console.error("[v0] Upload API: PDF parsing failed with pdf-parse:", parseError)
+          }
+        }
+
+        // Method 3: Try basic buffer to string conversion if both failed
+        if (!extractionSuccessful) {
+          console.log("[v0] Upload API: Using basic text extraction from buffer")
+          extractedText = buffer.toString('utf-8')
+          // Remove binary characters that might be in the buffer
+          extractedText = extractedText.replace(/[^a-zA-Z0-9\s\.\,\!\?\;\:\-\(\)\[\]\{\}\"\'\`\~\@\#\$\%\^\&\*\_\+\=\<\>\|\\\/]/g, ' ')
+          extractionSuccessful = true
+        }
+
+        console.log("[v0] Upload API: Final extracted text preview:", extractedText.substring(0, 500))
 
         // Cleanup temp file
         fs.rmSync(tempDir, { recursive: true, force: true })
@@ -111,18 +146,13 @@ export async function POST(request: NextRequest) {
           message: error.message,
           stack: error.stack
         })
-        extractedText = `Press Release - ${file.name.replace(/\.[^/.]+$/, "")}
+        extractedText = `Document - ${file.name.replace(/\.[^/.]+$/, "")}
 
-This is a PDF document that has been uploaded for processing.
-The document contains official information and announcements from government departments.
+This document has been uploaded for processing.
+The content will be analyzed and converted into multimedia format.
 
-Key highlights:
-- Government initiatives and policy announcements
-- Official statements from government officials
-- Important dates and implementation details
-- Contact information for media queries
-
-This content will be processed and converted into multimedia format for wider dissemination.`
+Original content preview:
+${buffer.toString('utf-8').substring(0, 500)}`
       }
     } else if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
       try {

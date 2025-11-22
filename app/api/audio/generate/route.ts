@@ -2,18 +2,62 @@ import { NextRequest, NextResponse } from 'next/server'
 import { spawn } from 'child_process'
 import path from 'path'
 import fs from 'fs'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
     console.log("Audio generation API called")
-    const formData = await request.formData()
-    const text = formData.get('text') as string
-    const personasJson = formData.get('personas') as string
-    const numHosts = formData.get('numHosts') as string
+    
+    let text = ''
+    let personasJson = ''
+    let numHosts = ''
+    let discussionTime = ''
+    let projectId = '' // Add project ID
+    let language = 'en' // Default to English
+    
+    // Check if the request is FormData or JSON
+    const contentType = request.headers.get('content-type') || ''
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData
+      const formData = await request.formData()
+      text = formData.get('text') as string || ''
+      personasJson = formData.get('personas') as string || ''
+      numHosts = formData.get('numHosts') as string || ''
+      discussionTime = formData.get('discussionTime') as string || ''
+      projectId = formData.get('projectId') as string || '' // Get project ID
+      language = formData.get('language') as string || 'en' // Get language
+    } else if (contentType.includes('application/json')) {
+      // Handle JSON
+      const jsonData = await request.json()
+      text = jsonData.text || ''
+      personasJson = jsonData.personas || ''
+      numHosts = jsonData.numHosts || ''
+      discussionTime = jsonData.discussionTime || ''
+      projectId = jsonData.projectId || '' // Get project ID
+      language = jsonData.language || 'en' // Get language
+    } else {
+      // Fallback to try FormData
+      try {
+        const formData = await request.formData()
+        text = formData.get('text') as string || ''
+        personasJson = formData.get('personas') as string || ''
+        numHosts = formData.get('numHosts') as string || ''
+        discussionTime = formData.get('discussionTime') as string || ''
+        projectId = formData.get('projectId') as string || '' // Get project ID
+        language = formData.get('language') as string || 'en' // Get language
+      } catch (e) {
+        // If both fail, return error
+        console.log("Failed to parse request body as either FormData or JSON")
+        return NextResponse.json({ error: 'Invalid request format' }, { status: 400 })
+      }
+    }
 
     console.log("Text received:", text?.substring(0, 100) + "...")
     console.log("Personas config:", personasJson)
     console.log("Number of hosts:", numHosts)
+    console.log("Project ID:", projectId) // Log project ID
+    console.log("Language setting:", language)
 
     if (!text || !text.trim()) {
       console.log("No text provided")
@@ -36,8 +80,24 @@ export async function POST(request: NextRequest) {
 
     const args = [audioScriptPath, filePath]
     if (personasJson) {
-      args.push(personasJson)
+      // Ensure personasJson is a JSON string before passing to Python
+      let personasString: string;
+      if (typeof personasJson === 'string') {
+        // If it's already a string, use it as is
+        personasString = personasJson;
+      } else {
+        // If it's an object/array, stringify it
+        personasString = JSON.stringify(personasJson);
+      }
+      args.push(personasString);
     }
+    if (discussionTime) {
+      // Ensure discussionTime is a string before passing to Python
+      args.push(discussionTime.toString());
+    }
+    
+    // Add language parameter
+    args.push(language);
 
     console.log("Command: python", args)
 
@@ -64,7 +124,7 @@ export async function POST(request: NextRequest) {
         errorOutput += dataStr
       })
 
-      pythonProcess.on('close', (code) => {
+      pythonProcess.on('close', async (code) => { // Make this async
         console.log("Python process exited with code:", code)
         // Clean up temp file
         try {
@@ -76,13 +136,35 @@ export async function POST(request: NextRequest) {
         if (code === 0) {
           try {
             const result = JSON.parse(output)
+            
+            // Save audio URL to database if project ID is provided
+            if (projectId) {
+              try {
+                const supabase = await createClient()
+                const audioUrl = result.audio_file ? `/api/audio/download/${result.audio_file}` : null
+                const { error: updateError } = await supabase
+                  .from('projects')
+                  .update({ audio_url: audioUrl })
+                  .eq('id', projectId)
+                
+                if (updateError) {
+                  console.error('Failed to update project with audio URL:', updateError)
+                } else {
+                  console.log('Successfully updated project with audio URL:', projectId)
+                }
+              } catch (dbError) {
+                console.error('Database error when saving audio URL:', dbError)
+              }
+            }
+            
             resolve(NextResponse.json({
               success: true,
               audioUrl: result.audio_file ? `/api/audio/download/${result.audio_file}` : null,
               transcriptUrl: result.transcript_file ? `/api/audio/download/${result.transcript_file}` : null,
               dialogue: result.dialogue,
               summary: result.summary,
-              personas: result.personas
+              personas: result.personas,
+              templateUsed: result.template_used // Add template information to response
             }))
           } catch (parseError) {
             resolve(NextResponse.json({
@@ -100,9 +182,6 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Send the file path to the Python script
-      pythonProcess.stdin.write(filePath + '\n')
-      pythonProcess.stdin.end()
     })
 
   } catch (error) {

@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS projects (
   audio_url TEXT,
   video_url TEXT,
   status TEXT DEFAULT 'processing',
+  language_count INTEGER DEFAULT 0,
+  scene_count INTEGER DEFAULT 0,
+  duration_minutes INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -51,7 +51,8 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
   const [hCaptchaLoaded, setHCaptchaLoaded] = useState(false)
   const [captchaLoadError, setCaptchaLoadError] = useState(false)
   const [allowCaptchaBypass, setAllowCaptchaBypass] = useState(false)
-  const [activeTab, setActiveTab] = useState("login") // Added state to track active tab
+  const [activeTab, setActiveTab] = useState("login")
+  const [captchaRetryCount, setCaptchaRetryCount] = useState(0)
   const loginCaptchaRef = useRef<HTMLDivElement>(null)
   const signupCaptchaRef = useRef<HTMLDivElement>(null)
   const loginWidgetId = useRef<string>("")
@@ -60,8 +61,23 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
 
   useEffect(() => {
     const loadHCaptcha = () => {
+      // If already loaded, don't try again
       if (window.hcaptcha) {
         setHCaptchaLoaded(true)
+        return
+      }
+
+      // Prevent infinite retries
+      if (captchaRetryCount > 3) {
+        console.error("[v0] hCaptcha failed to load after multiple attempts")
+        setCaptchaLoadError(true)
+        setAllowCaptchaBypass(true)
+        toast({
+          title: "Captcha Temporarily Unavailable",
+          description: "Security verification is temporarily unavailable. You can proceed without it.",
+          variant: "destructive",
+          duration: 8000,
+        })
         return
       }
 
@@ -71,24 +87,34 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       script.defer = true
       script.onload = () => {
         setHCaptchaLoaded(true)
+        setCaptchaRetryCount(0) // Reset retry count on success
         console.log("[v0] hCaptcha script loaded successfully")
       }
       script.onerror = () => {
-        console.error("[v0] Failed to load hCaptcha script")
-        setCaptchaLoadError(true)
-        setAllowCaptchaBypass(true)
-        toast({
-          title: "Captcha Loading Issue",
-          description: "Security verification is temporarily unavailable. You can proceed without it.",
-          variant: "destructive",
-          duration: 8000,
-        })
+        console.error("[v0] Failed to load hCaptcha script - attempt", captchaRetryCount + 1)
+        // Retry after a delay
+        setTimeout(() => {
+          setCaptchaRetryCount(prev => prev + 1)
+          loadHCaptcha()
+        }, 2000)
       }
+      
+      // Add timeout to handle cases where onload/onerror don't fire
+      setTimeout(() => {
+        if (!window.hcaptcha && !hCaptchaLoaded && captchaRetryCount <= 3) {
+          console.error("[v0] hCaptcha script timeout - attempt", captchaRetryCount + 1)
+          setTimeout(() => {
+            setCaptchaRetryCount(prev => prev + 1)
+            loadHCaptcha()
+          }, 2000)
+        }
+      }, 5000)
+      
       document.head.appendChild(script)
     }
 
     loadHCaptcha()
-  }, [])
+  }, [captchaRetryCount])
 
   useEffect(() => {
     if (open && hCaptchaLoaded && window.hcaptcha) {
@@ -122,20 +148,13 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
                 "error-callback": (error: any) => {
                   console.error("[v0] Login captcha error:", error)
                   setLoginCaptchaToken("")
-                  setCaptchaLoadError(true)
-                  setAllowCaptchaBypass(true)
-                  toast({
-                    title: "Captcha Error",
-                    description: "Security verification failed. You can proceed without it for now.",
-                    variant: "destructive",
-                  })
+                  // Don't set captcha error here, just reset the token
                 },
               })
               console.log("[v0] Login captcha widget created with ID:", loginWidgetId.current)
             } catch (error) {
               console.error("[v0] Failed to create login captcha widget:", error)
-              setCaptchaLoadError(true)
-              setAllowCaptchaBypass(true)
+              // We still allow bypass since the main issue is loading
             }
           }
         }
@@ -169,20 +188,13 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
                 "error-callback": (error: any) => {
                   console.error("[v0] Signup captcha error:", error)
                   setSignupCaptchaToken("")
-                  setCaptchaLoadError(true)
-                  setAllowCaptchaBypass(true)
-                  toast({
-                    title: "Captcha Error",
-                    description: "Security verification failed. You can proceed without it for now.",
-                    variant: "destructive",
-                  })
+                  // Don't set captcha error here, just reset the token
                 },
               })
               console.log("[v0] Signup captcha widget created with ID:", signupWidgetId.current)
             } catch (error) {
               console.error("[v0] Failed to create signup captcha widget:", error)
-              setCaptchaLoadError(true)
-              setAllowCaptchaBypass(true)
+              // We still allow bypass since the main issue is loading
             }
           }
         }
@@ -216,7 +228,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
         setSignupCaptchaToken("")
       }
     }
-  }, [open, hCaptchaLoaded, activeTab]) // Added activeTab dependency to re-run when tab changes
+  }, [open, hCaptchaLoaded, activeTab])
 
   useEffect(() => {
     setRedirectUrl("https://v0-make-this-psi.vercel.app/auth/callback")
@@ -283,7 +295,8 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       return
     }
 
-    if (!loginCaptchaToken && !allowCaptchaBypass) {
+    // Only require captcha if it's actually loaded and not in bypass mode
+    if (!loginCaptchaToken && hCaptchaLoaded && !allowCaptchaBypass) {
       toast({
         title: "Captcha Required",
         description: "Please complete the captcha verification",
@@ -296,16 +309,16 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       try {
         console.log("[v0] Login attempt for domain:", window.location.hostname)
         console.log("[v0] Using redirect URL:", redirectUrl)
-        console.log("[v0] Captcha token (first 20 chars):", loginCaptchaToken.substring(0, 20) + "...")
-        console.log("[v0] Captcha token length:", loginCaptchaToken.length)
+        console.log("[v0] Captcha token (first 20 chars):", loginCaptchaToken?.substring(0, 20) + "...")
+        console.log("[v0] Captcha token length:", loginCaptchaToken?.length || 0)
 
         const authOptions: any = {
           email: loginData.email.trim(),
           password: loginData.password,
         }
 
-        // Only add captcha token if available
-        if (loginCaptchaToken) {
+        // Only add captcha token if available and loaded
+        if (loginCaptchaToken && hCaptchaLoaded) {
           authOptions.options = { captchaToken: loginCaptchaToken }
         }
 
@@ -376,7 +389,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
             variant: "destructive",
             duration: 8000,
           })
-        } else if (error.message?.includes("captcha")) {
+        } else if (error.message?.includes("captcha") && hCaptchaLoaded) {
           toast({
             title: "Captcha Verification Failed",
             description: "Please complete the captcha verification and try again.",
@@ -423,7 +436,8 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       return
     }
 
-    if (!signupCaptchaToken && !allowCaptchaBypass) {
+    // Only require captcha if it's actually loaded and not in bypass mode
+    if (!signupCaptchaToken && hCaptchaLoaded && !allowCaptchaBypass) {
       toast({
         title: "Captcha Required",
         description: "Please complete the captcha verification",
@@ -436,7 +450,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
       try {
         if (!redirectUrl) return // Wait for redirect URL to be set
 
-        console.log("[v0] Signup attempt with captcha token:", signupCaptchaToken.substring(0, 20) + "...")
+        console.log("[v0] Signup attempt with captcha token:", signupCaptchaToken?.substring(0, 20) + "...")
 
         const signupOptions: any = {
           email: signupData.email.trim(),
@@ -452,8 +466,8 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
           },
         }
 
-        // Only add captcha token if available
-        if (signupCaptchaToken) {
+        // Only add captcha token if available and loaded
+        if (signupCaptchaToken && hCaptchaLoaded) {
           signupOptions.options.captchaToken = signupCaptchaToken
         }
 
@@ -536,7 +550,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
             variant: "destructive",
             duration: 8000,
           })
-        } else if (error.message?.includes("captcha")) {
+        } else if (error.message?.includes("captcha") && hCaptchaLoaded) {
           toast({
             title: "Captcha Verification Failed",
             description: "Please complete the captcha verification and try again.",
@@ -718,7 +732,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={isPending || (!loginCaptchaToken && !allowCaptchaBypass)}
+                    disabled={isPending || (hCaptchaLoaded && !loginCaptchaToken && !allowCaptchaBypass)}
                   >
                     {isPending ? "Signing In..." : "Sign In"}
                   </Button>
@@ -874,7 +888,7 @@ export function LoginModal({ open, onOpenChange, onAuthSuccess }: LoginModalProp
                   <Button
                     type="submit"
                     className="w-full"
-                    disabled={isPending || (!signupCaptchaToken && !allowCaptchaBypass)}
+                    disabled={isPending || (hCaptchaLoaded && !signupCaptchaToken && !allowCaptchaBypass)}
                   >
                     {isPending ? "Creating Account..." : "Create Account"}
                   </Button>

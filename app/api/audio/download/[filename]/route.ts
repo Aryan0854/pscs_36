@@ -4,10 +4,10 @@ import fs from 'fs'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
-    const filename = params.filename
+    const { filename } = await params
     const audioDir = path.join(process.cwd(), '5(Audio)', 'outputs', 'audio')
     const transcriptDir = path.join(process.cwd(), '5(Audio)', 'outputs', 'transcripts')
 
@@ -27,6 +27,8 @@ export async function GET(
     const headers = new Headers()
     if (filename.endsWith('.wav')) {
       headers.set('Content-Type', 'audio/wav')
+    } else if (filename.endsWith('.mp3')) {
+      headers.set('Content-Type', 'audio/mpeg')
     } else if (filename.endsWith('.txt')) {
       headers.set('Content-Type', 'text/plain')
     }

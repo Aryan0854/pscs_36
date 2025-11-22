@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { SecurityUtils } from "@/lib/security"
 
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({
@@ -8,6 +9,15 @@ export async function middleware(req: NextRequest) {
       headers: req.headers,
     },
   })
+
+  // Apply rate limiting
+  const isAllowed = await SecurityUtils.rateLimit(req, 100, 60000) // 100 requests per minute
+  if (!isAllowed) {
+    return new NextResponse('Too Many Requests', { status: 429 })
+  }
+
+  // Apply additional security headers
+  SecurityUtils.applySecurityHeaders(res);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -38,6 +48,34 @@ export async function middleware(req: NextRequest) {
     if (code) {
       await supabase.auth.exchangeCodeForSession(code)
       return NextResponse.redirect(new URL("/", req.url))
+    }
+  }
+
+  // Protect API routes
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    // Add CORS headers for API routes
+    res.headers.set('Access-Control-Allow-Origin', '*')
+    res.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-CSRF-Token')
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      return new NextResponse(null, { status: 204 })
+    }
+    
+    // Validate CSRF token for state-changing requests
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      const csrfToken = req.headers.get('X-CSRF-Token')
+      // In a real implementation, you would validate the token against a stored value
+      // For now, we'll just check that it exists
+      if (!csrfToken) {
+        // In development mode, allow requests without CSRF token
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[Middleware] Warning: Missing CSRF token in development mode - allowing request')
+        } else {
+          return new NextResponse('Missing CSRF token', { status: 403 })
+        }
+      }
     }
   }
 

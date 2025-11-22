@@ -4,6 +4,7 @@ import { Work_Sans, Open_Sans } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
+import { LanguageProvider } from "@/lib/contexts/language-context"
 import { Analytics } from "@vercel/analytics/next"
 
 const workSans = Work_Sans({
@@ -30,13 +31,15 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${workSans.variable} ${openSans.variable} antialiased`}>
-      <body suppressHydrationWarning={true}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          {children}
-          <Toaster />
-          <Analytics />
-        </ThemeProvider>
+    <html lang="en" className={`${workSans.variable} ${openSans.variable} antialiased`} suppressHydrationWarning>
+      <body>
+        <LanguageProvider>
+          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+            {children}
+            <Toaster />
+            <Analytics />
+          </ThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

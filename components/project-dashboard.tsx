@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -65,13 +65,21 @@ export function ProjectDashboard({ onTabChange, onTextExtracted, onFileUpload }:
   const [uploading, setUploading] = useState(false)
   const { toast } = useToast()
 
-  const fetchDashboardData = async () => {
+  // Always fetch fresh data - no caching
+  const fetchDashboardData = useCallback(async () => {
+    console.time("dashboard-component-fetch")
     try {
       setLoading(true)
+      console.time("api-request")
       const response = await fetch("/api/analytics/dashboard")
+      console.timeEnd("api-request")
       if (!response.ok) throw new Error("Failed to fetch dashboard data")
+      console.time("json-parse")
       const data = await response.json()
+      console.timeEnd("json-parse")
+      console.time("state-update")
       setDashboardData(data)
+      console.timeEnd("state-update")
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
       toast({
@@ -82,14 +90,30 @@ export function ProjectDashboard({ onTabChange, onTextExtracted, onFileUpload }:
     } finally {
       setLoading(false)
     }
-  }
+    console.timeEnd("dashboard-component-fetch")
+  }, [toast])
 
   useEffect(() => {
+    console.time("dashboard-mount")
     fetchDashboardData()
+    console.timeEnd("dashboard-mount")
   }, [])
 
+  useEffect(() => {
+    if (dashboardData) {
+      console.time("dashboard-render")
+      // This will run after render
+      setTimeout(() => console.timeEnd("dashboard-render"), 0)
+    }
+  }, [dashboardData])
+
+  // Memoize chart data to prevent unnecessary re-computations - MUST be called before any conditional returns
+  const memoizedLanguageUsage = useMemo(() => dashboardData?.languageUsage || [], [dashboardData?.languageUsage])
+  const memoizedProjectTrends = useMemo(() => dashboardData?.projectTrends || [], [dashboardData?.projectTrends])
+  const memoizedProcessingTimeData = useMemo(() => dashboardData?.processingTimeData || [], [dashboardData?.processingTimeData])
+
   const handleRefresh = () => {
-    fetchDashboardData()
+    fetchDashboardData() // Always fetch fresh data
     toast({
       title: "Dashboard Refreshed",
       description: "Analytics data has been updated with the latest information.",
@@ -216,7 +240,7 @@ export function ProjectDashboard({ onTabChange, onTextExtracted, onFileUpload }:
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <p className="text-muted-foreground mb-4">Failed to load dashboard data</p>
-          <Button onClick={fetchDashboardData}>
+          <Button onClick={() => fetchDashboardData()}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Retry
           </Button>
@@ -385,7 +409,7 @@ export function ProjectDashboard({ onTabChange, onTextExtracted, onFileUpload }:
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={projectTrends}>
+              <BarChart data={memoizedProjectTrends}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -408,7 +432,7 @@ export function ProjectDashboard({ onTabChange, onTextExtracted, onFileUpload }:
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={languageUsage}
+                  data={memoizedLanguageUsage}
                   cx="50%"
                   cy="50%"
                   outerRadius={80}
@@ -436,7 +460,7 @@ export function ProjectDashboard({ onTabChange, onTextExtracted, onFileUpload }:
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={processingTimeData}>
+            <LineChart data={memoizedProcessingTimeData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="day" />
               <YAxis />

@@ -33,6 +33,55 @@ interface UserSettings {
   exportFormat: "mp4" | "mov" | "avi"
   parallelProcessing: boolean
   autoDownload: boolean
+  audioLanguage?: string // Add audio language setting
+}
+
+// Language name to code mapping
+const languageNameToCode: Record<string, string> = {
+  "english": "en",
+  "hindi": "hi",
+  "bengali": "bn",
+  "tamil": "ta",
+  "telugu": "te",
+  "gujarati": "gu",
+  "marathi": "mr",
+  "kannada": "kn",
+  "malayalam": "ml",
+  "odia": "or",
+  "punjabi": "pa",
+  "assamese": "as",
+  "urdu": "ur",
+  "nepali": "ne",
+  "maithili": "mai"
+}
+
+// Language code to name mapping
+const languageCodeToName: Record<string, string> = {
+  "en": "english",
+  "hi": "hindi",
+  "bn": "bengali",
+  "ta": "tamil",
+  "te": "telugu",
+  "gu": "gujarati",
+  "mr": "marathi",
+  "kn": "kannada",
+  "ml": "malayalam",
+  "or": "odia",
+  "pa": "punjabi",
+  "as": "assamese",
+  "ur": "urdu",
+  "ne": "nepali",
+  "mai": "maithili"
+}
+
+// Convert language name to code
+const convertLanguageNameToCode = (name: string): string => {
+  return languageNameToCode[name.toLowerCase()] || name
+}
+
+// Convert language code to name
+const convertLanguageCodeToName = (code: string): string => {
+  return languageCodeToName[code.toLowerCase()] || code
 }
 
 export function SettingsModal({
@@ -47,14 +96,15 @@ export function SettingsModal({
   const [isLoading, setIsLoading] = useState(false)
   const [settings, setSettings] = useState<UserSettings>({
     theme: "dark",
-    defaultLanguage: "english",
-    enabledLanguages: ["english", "hindi"],
+    defaultLanguage: "en",
+    enabledLanguages: ["en", "hi"],
     notifications: true,
     autoSave: true,
     exportQuality: "high",
     exportFormat: "mp4",
     parallelProcessing: true,
     autoDownload: true,
+    audioLanguage: "same-as-ui", // Add default audio language setting
   })
   const { toast } = useToast()
   const { theme, setTheme } = useTheme()
@@ -157,8 +207,8 @@ export function SettingsModal({
 
   const handleLanguageToggle = (language: string, enabled: boolean) => {
     const updatedLanguages = enabled
-      ? [...settings.enabledLanguages, language.toLowerCase()]
-      : settings.enabledLanguages.filter((lang) => lang !== language.toLowerCase())
+      ? [...settings.enabledLanguages, convertLanguageNameToCode(language)]
+      : settings.enabledLanguages.filter((lang) => lang !== convertLanguageNameToCode(language))
 
     handleSettingChange("enabledLanguages", updatedLanguages)
   }
@@ -330,20 +380,20 @@ export function SettingsModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="english">English</SelectItem>
-                      <SelectItem value="hindi">Hindi</SelectItem>
-                      <SelectItem value="bengali">Bengali</SelectItem>
-                      <SelectItem value="tamil">Tamil</SelectItem>
-                      <SelectItem value="telugu">Telugu</SelectItem>
-                      <SelectItem value="marathi">Marathi</SelectItem>
-                      <SelectItem value="gujarati">Gujarati</SelectItem>
-                      <SelectItem value="urdu">Urdu</SelectItem>
-                      <SelectItem value="kannada">Kannada</SelectItem>
-                      <SelectItem value="odia">Odia</SelectItem>
-                      <SelectItem value="malayalam">Malayalam</SelectItem>
-                      <SelectItem value="punjabi">Punjabi</SelectItem>
-                      <SelectItem value="assamese">Assamese</SelectItem>
-                      <SelectItem value="maithili">Maithili</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="hi">Hindi</SelectItem>
+                      <SelectItem value="bn">Bengali</SelectItem>
+                      <SelectItem value="ta">Tamil</SelectItem>
+                      <SelectItem value="te">Telugu</SelectItem>
+                      <SelectItem value="mr">Marathi</SelectItem>
+                      <SelectItem value="gu">Gujarati</SelectItem>
+                      <SelectItem value="ur">Urdu</SelectItem>
+                      <SelectItem value="kn">Kannada</SelectItem>
+                      <SelectItem value="or">Odia</SelectItem>
+                      <SelectItem value="ml">Malayalam</SelectItem>
+                      <SelectItem value="pa">Punjabi</SelectItem>
+                      <SelectItem value="as">Assamese</SelectItem>
+                      <SelectItem value="mai">Maithili</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -370,13 +420,44 @@ export function SettingsModal({
                     ].map((lang) => (
                       <div key={lang} className="flex items-center space-x-2">
                         <Switch
-                          checked={settings.enabledLanguages.includes(lang.toLowerCase())}
+                          checked={settings.enabledLanguages.includes(convertLanguageNameToCode(lang))}
                           onCheckedChange={(checked) => handleLanguageToggle(lang, checked)}
                         />
                         <Label className="text-sm">{lang}</Label>
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Audio Language Setting */}
+                <div className="pt-4 border-t">
+                  <Label>Audio Language</Label>
+                  <p className="text-sm text-muted-foreground mb-2">Select language for audio generation (independent of UI language)</p>
+                  <Select
+                    value={settings.audioLanguage || "same-as-ui"}
+                    onValueChange={(value) => handleSettingChange("audioLanguage", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="same-as-ui">Same as UI Language</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="hi">Hindi</SelectItem>
+                      <SelectItem value="bn">Bengali</SelectItem>
+                      <SelectItem value="ta">Tamil</SelectItem>
+                      <SelectItem value="te">Telugu</SelectItem>
+                      <SelectItem value="mr">Marathi</SelectItem>
+                      <SelectItem value="gu">Gujarati</SelectItem>
+                      <SelectItem value="ur">Urdu</SelectItem>
+                      <SelectItem value="kn">Kannada</SelectItem>
+                      <SelectItem value="or">Odia</SelectItem>
+                      <SelectItem value="ml">Malayalam</SelectItem>
+                      <SelectItem value="pa">Punjabi</SelectItem>
+                      <SelectItem value="as">Assamese</SelectItem>
+                      <SelectItem value="mai">Maithili</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>

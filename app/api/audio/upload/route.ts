@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { createServerClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { writeFile, mkdir } from "fs/promises"
 import { join } from "path"
 import { randomUUID } from "crypto"
@@ -8,10 +8,15 @@ export async function POST(request: NextRequest) {
   try {
     console.log("[Audio Upload API] Starting audio file upload")
 
-    const supabase = await createServerClient(request)
-
-    // Get user if available, but don't fail if not authenticated (for now)
-    const { data: { user } } = await supabase.auth.getUser()
+    // Create Supabase client if configured
+    let supabase = null;
+    let user = null;
+    if (isSupabaseConfigured) {
+      supabase = await createServerClient(request);
+      // Get user if available, but don't fail if not authenticated (for now)
+      const { data: { user: userData } } = await supabase.auth.getUser();
+      user = userData;
+    }
 
     const formData = await request.formData()
     const file = formData.get("file") as File
@@ -69,54 +74,70 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
     await writeFile(filePath, buffer)
 
-    // Create database record
-    const audioData = {
-      id: fileId,
-      filename: file.name,
-      original_filename: file.name,
-      file_path: `/uploads/audio/${filename}`,
-      audio_type: audioType,
-      file_size: file.size,
-      mime_type: file.type,
-      duration: null, // Could be calculated later
-      user_id: user?.id || null,
-      created_at: new Date().toISOString(),
-    }
-
-    const { data: audioRecord, error: dbError } = await supabase
-      .from("audio_files")
-      .insert(audioData)
-      .select()
-      .single()
-
-    if (dbError) {
-      console.error("[Audio Upload API] Database error:", dbError)
-      // Try to clean up the file
-      try {
-        const fs = require('fs')
-        fs.unlinkSync(filePath)
-      } catch (cleanupError) {
-        console.error("[Audio Upload API] Cleanup failed:", cleanupError)
+    // Create database record if Supabase is configured
+    let audioRecord = null;
+    if (isSupabaseConfigured && supabase) {
+      const audioData = {
+        id: fileId,
+        filename: file.name,
+        original_filename: file.name,
+        file_path: `/uploads/audio/${filename}`,
+        audio_type: audioType,
+        file_size: file.size,
+        mime_type: file.type,
+        duration: null, // Could be calculated later
+        user_id: user?.id || null,
+        created_at: new Date().toISOString(),
       }
-      return NextResponse.json({
-        success: false,
-        error: "Failed to save audio record to database"
-      }, { status: 500 })
+
+      const { data, error: dbError } = await supabase
+        .from("audio_files")
+        .insert(audioData)
+        .select()
+        .single()
+
+      if (dbError) {
+        console.error("[Audio Upload API] Database error:", dbError)
+        // Try to clean up the file
+        try {
+          const fs = require('fs')
+          fs.unlinkSync(filePath)
+        } catch (cleanupError) {
+          console.error("[Audio Upload API] Cleanup failed:", cleanupError)
+        }
+        return NextResponse.json({
+          success: false,
+          error: "Failed to save audio record to database"
+        }, { status: 500 })
+      }
+      
+      audioRecord = data;
     }
 
-    console.log("[Audio Upload API] Audio uploaded successfully:", audioRecord.id)
+    console.log("[Audio Upload API] Audio uploaded successfully")
 
-    return NextResponse.json({
+    // Return response with or without database record
+    const responseData: any = {
       success: true,
       data: {
-        id: audioRecord.id,
-        filename: audioRecord.filename,
-        audioUrl: audioRecord.file_path,
+        id: fileId,
+        filename: file.name,
+        audioUrl: `/uploads/audio/${filename}`,
         audioType: audioType,
-        fileSize: audioRecord.file_size,
+        fileSize: file.size,
       },
       message: "Audio file uploaded successfully"
-    })
+    };
+    
+    // Add database ID if available
+    if (audioRecord) {
+      responseData.data.id = audioRecord.id;
+      responseData.data.filename = audioRecord.filename;
+      responseData.data.audioUrl = audioRecord.file_path;
+      responseData.data.fileSize = audioRecord.file_size;
+    }
+
+    return NextResponse.json(responseData)
 
   } catch (error) {
     console.error("[Audio Upload API] Upload error:", error)

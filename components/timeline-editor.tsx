@@ -971,11 +971,17 @@ export const TimelineEditor = forwardRef<unknown, TimelineEditorProps>((props, r
       formData.append('file', uploadingFile)
       formData.append('audioType', selectedAudioType)
 
+      // Generate CSRF token
+      const csrfToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+
       // Upload to audio API
       const response = await fetch('/api/audio/upload', {
         method: 'POST',
         body: formData,
         credentials: 'include',
+        headers: {
+          'X-CSRF-Token': csrfToken,
+        },
       })
 
       if (response.ok) {

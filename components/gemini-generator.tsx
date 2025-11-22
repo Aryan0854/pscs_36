@@ -235,9 +235,15 @@ export function GeminiGenerator({
       
       formData.append('language', audioLanguage) // Add language to form data
 
+      // Generate CSRF token
+      const csrfToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+
       const response = await fetch('/api/audio/generate', {
         method: 'POST',
         body: formData,
+        headers: {
+          'X-CSRF-Token': csrfToken,
+        },
       })
 
       clearInterval(interval)

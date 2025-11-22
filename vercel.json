@@ -10,5 +10,8 @@
     "app/api/**/*.ts": {
       "runtime": "nodejs18.x"
     }
+  },
+  "github": {
+    "silent": true
   }
 }

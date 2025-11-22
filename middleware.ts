@@ -3,6 +3,12 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { SecurityUtils } from "@/lib/security"
 
+// Check if Supabase is configured
+const isSupabaseConfigured = !!(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && 
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)
+
 export async function middleware(req: NextRequest) {
   let res = NextResponse.next({
     request: {
@@ -19,35 +25,38 @@ export async function middleware(req: NextRequest) {
   // Apply additional security headers
   SecurityUtils.applySecurityHeaders(res);
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll()
+  // Only create Supabase client if configured
+  if (isSupabaseConfigured) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return req.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              req.cookies.set(name, value)
+              res.cookies.set(name, value, options)
+            })
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            req.cookies.set(name, value)
-            res.cookies.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
+      }
+    )
 
-  // Refresh session if expired - required for Server Components
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    // Refresh session if expired - required for Server Components
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
-  // Handle auth callback
-  if (req.nextUrl.pathname === "/auth/callback") {
-    const code = req.nextUrl.searchParams.get("code")
-    if (code) {
-      await supabase.auth.exchangeCodeForSession(code)
-      return NextResponse.redirect(new URL("/", req.url))
+    // Handle auth callback
+    if (req.nextUrl.pathname === "/auth/callback") {
+      const code = req.nextUrl.searchParams.get("code")
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code)
+        return NextResponse.redirect(new URL("/", req.url))
+      }
     }
   }
 

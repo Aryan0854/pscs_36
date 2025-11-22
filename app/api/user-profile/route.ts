@@ -1,7 +1,13 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET(request: NextRequest) {
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured) {
+    console.warn("[User Profile API] Supabase not configured - returning empty profile")
+    return NextResponse.json({ error: "User profile service unavailable" }, { status: 503 })
+  }
+  
   try {
     const supabase = await createClient()
 
@@ -34,6 +40,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured) {
+    console.warn("[User Profile API] Supabase not configured - cannot update profile")
+    return NextResponse.json({ error: "User profile service unavailable" }, { status: 503 })
+  }
+  
   try {
     const supabase = await createClient()
     const body = await request.json()

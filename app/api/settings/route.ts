@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server"
 
 interface UserSettings {
   userId: string
@@ -16,6 +16,29 @@ interface UserSettings {
 }
 
 export async function GET(request: NextRequest) {
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured) {
+    console.warn("[Settings API] Supabase not configured - returning default settings")
+    const defaultSettings = {
+      userId: null,
+      theme: "dark",
+      defaultLanguage: "en",
+      enabledLanguages: ["en", "hi"],
+      notifications: true,
+      autoSave: true,
+      exportQuality: "high",
+      exportFormat: "mp4",
+      parallelProcessing: true,
+      autoDownload: true,
+      audioLanguage: "same-as-ui",
+    }
+    
+    return NextResponse.json({
+      success: true,
+      data: defaultSettings,
+    })
+  }
+  
   try {
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -81,6 +104,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured) {
+    console.warn("[Settings API] Supabase not configured - cannot save settings")
+    return NextResponse.json({ success: false, error: "Settings service unavailable" }, { status: 503 })
+  }
+  
   try {
     const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
